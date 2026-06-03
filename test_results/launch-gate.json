@@ -8,7 +8,7 @@
   "rows": [
     {
       "example": "chord_inversions",
-      "rawVerdict": "match",
+      "rawVerdict": "inconcl",
       "gateVerdict": "match",
       "pass": true,
       "gradedVia": "projection",
@@ -16,11 +16,11 @@
     },
     {
       "example": "reich_phase",
-      "rawVerdict": "match",
+      "rawVerdict": "inconcl",
       "gateVerdict": "match",
       "pass": true,
-      "gradedVia": "raw-sweep",
-      "detail": ""
+      "gradedVia": "projection",
+      "detail": "tools/gate-reproducers/reich_phase.rb → compare_2026-06-01T07-49-58-016Z_reich_phase_proj.md"
     },
     {
       "example": "dark_neon",
@@ -32,7 +32,7 @@
     },
     {
       "example": "mod_303_phade",
-      "rawVerdict": "inconcl",
+      "rawVerdict": "match",
       "gateVerdict": "match",
       "pass": true,
       "gradedVia": "raw-refreshed",
@@ -48,15 +48,15 @@
     },
     {
       "example": "driving_pulse",
-      "rawVerdict": "match",
+      "rawVerdict": "inconcl",
       "gateVerdict": "match",
       "pass": true,
-      "gradedVia": "raw-sweep",
-      "detail": ""
+      "gradedVia": "projection",
+      "detail": "tools/gate-reproducers/driving_pulse.rb → compare_2026-06-01T07-48-15-226Z_driving_pulse_proj.md"
     },
     {
       "example": "monday_blues",
-      "rawVerdict": "match",
+      "rawVerdict": "inconcl",
       "gateVerdict": "match",
       "pass": true,
       "gradedVia": "projection",

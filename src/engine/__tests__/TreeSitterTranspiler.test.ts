@@ -321,6 +321,161 @@ sleep 5`)
         expect(itIdx).toBeGreaterThanOrEqual(0)
         expect(synthIdx).toBeLessThan(itIdx)
       })
+
+      // #448/SP118: a top-level in_thread declared after vtime-advancing bare
+      // code must fork at the source-position vtime — gated via a start-gate cue
+      // __run_once fires at the in_thread's source position.
+      it('#448: top-level in_thread after sleep emits a start-gate (cue + __startGate)', () => {
+        const result = treeSitterTranspile(`play 40
+sleep 2
+in_thread do
+  play 60
+end`)
+        expect(result.ok).toBe(true)
+        // The in_thread registration carries the start-gate opt.
+        expect(result.code).toMatch(/in_thread\(\{[^}]*__startGate:\s*"__sg_0"/)
+        // __run_once fires the matching cue (inside the __run_once wrapper).
+        expect(result.code).toContain('__b.cue("__sg_0")')
+        // The gate cue fires at the source position — after the bare `sleep 2`.
+        const sleepIdx = result.code.indexOf('__b.sleep(2)')
+        const cueIdx = result.code.indexOf('__b.cue("__sg_0")')
+        expect(sleepIdx).toBeGreaterThanOrEqual(0)
+        expect(cueIdx).toBeGreaterThan(sleepIdx)
+      })
+
+      it('#448: top-level in_thread with NO preceding sleep is NOT gated', () => {
+        const result = treeSitterTranspile(`in_thread do
+  play 60
+end
+sleep 5`)
+        expect(result.ok).toBe(true)
+        // No vtime-advancing bare code precedes it → starts at vt 0 (correct),
+        // so no start-gate is injected.
+        expect(result.code).not.toContain('__startGate')
+        expect(result.code).not.toContain('__sg_0')
+      })
+
+      it('#448: a nested in_thread does NOT inherit the outer start-gate', () => {
+        const result = treeSitterTranspile(`sleep 2
+in_thread do
+  in_thread do
+    play 60
+  end
+end`)
+        expect(result.ok).toBe(true)
+        // Exactly one start-gate (the outer top-level in_thread); the nested one
+        // must not also be gated.
+        const gateCount = (result.code.match(/__startGate/g) ?? []).length
+        expect(gateCount).toBe(1)
+      })
+
+      // #448 follow-up: extend the start-gate to top-level `live_loop`, the
+      // auto-named bare `loop do`, and a `with_fx`-wrapped loop — same vt-0 bug,
+      // same source-position cue-gate mechanism (SK21).
+      it('#448: top-level live_loop after sleep emits a start-gate (cue + __startGate)', () => {
+        const result = treeSitterTranspile(`play 50
+sleep 4
+live_loop :L do
+  play 84
+  sleep 1
+end
+play 72`)
+        expect(result.ok).toBe(true)
+        expect(result.code).toMatch(/live_loop\("L",\s*\{[^}]*__startGate:\s*"__sg_0"/)
+        // The gate cue fires at the source position — after the bare `sleep 4`,
+        // before the trailing `play 72`, inside __run_once.
+        const sleepIdx = result.code.indexOf('__b.sleep(4)')
+        const cueIdx = result.code.indexOf('__b.cue("__sg_0")')
+        const play72Idx = result.code.indexOf('__b.play(72')
+        expect(sleepIdx).toBeGreaterThanOrEqual(0)
+        expect(cueIdx).toBeGreaterThan(sleepIdx)
+        expect(play72Idx).toBeGreaterThan(cueIdx)
+      })
+
+      it('#448: top-level live_loop with NO preceding sleep is NOT gated', () => {
+        const result = treeSitterTranspile(`live_loop :L do
+  play 84
+  sleep 1
+end`)
+        expect(result.ok).toBe(true)
+        expect(result.code).not.toContain('__startGate')
+        expect(result.code).not.toContain('__sg_0')
+      })
+
+      it('#448: an auto-named bare `loop do` after sleep is gated', () => {
+        const result = treeSitterTranspile(`sleep 4
+loop do
+  play 84
+  sleep 1
+end`)
+        expect(result.ok).toBe(true)
+        expect(result.code).toMatch(/live_loop\("__loop_0",\s*\{__startGate:\s*"__sg_0"/)
+        expect(result.code).toContain('__b.cue("__sg_0")')
+      })
+
+      it('#448: a with_fx-wrapped live_loop after sleep gates the INNER loop', () => {
+        const result = treeSitterTranspile(`sleep 4
+with_fx :reverb do
+  live_loop :L do
+    play 84
+    sleep 1
+  end
+end`)
+        expect(result.ok).toBe(true)
+        // The gate reaches the inner live_loop, not the with_fx wrapper.
+        expect(result.code).toMatch(/live_loop\("L",\s*\{[^}]*__startGate:\s*"__sg_0"/)
+        expect(result.code).toContain('__b.cue("__sg_0")')
+      })
+
+      it('#448: a with_fx-wrapped bare loop after sleep gates the hoisted __fxloop', () => {
+        const result = treeSitterTranspile(`sleep 4
+with_fx :reverb do
+  loop do
+    play 84
+    sleep 1
+  end
+end`)
+        expect(result.ok).toBe(true)
+        expect(result.code).toMatch(/live_loop\("__fxloop_0",\s*\{__startGate:\s*"__sg_0"/)
+      })
+
+      it('#448: live_loop start-gate composes with user sync: (gate awaited first)', () => {
+        const result = treeSitterTranspile(`sleep 4
+live_loop :L, sync: :foo do
+  play 84
+  sleep 1
+end`)
+        expect(result.ok).toBe(true)
+        // Both opts present; sync: emitted before __startGate in the hash, but
+        // the engine awaits __startGate FIRST (desktop forks at T, then syncs).
+        expect(result.code).toMatch(/live_loop\("L",\s*\{sync:\s*"foo",\s*__startGate:\s*"__sg_0"/)
+      })
+
+      it('#448: a nested live_loop does NOT inherit the outer live_loop start-gate', () => {
+        const result = treeSitterTranspile(`sleep 2
+live_loop :A do
+  live_loop :B do
+    play 60
+    sleep 1
+  end
+  sleep 1
+end`)
+        expect(result.ok).toBe(true)
+        // Only the outer top-level live_loop A is gated; the nested B is not.
+        const gateCount = (result.code.match(/__startGate/g) ?? []).length
+        expect(gateCount).toBe(1)
+        expect(result.code).toMatch(/live_loop\("A",\s*\{__startGate/)
+      })
+
+      it('#448: a top-level `define` after sleep is NOT gated', () => {
+        const result = treeSitterTranspile(`sleep 4
+define :foo do
+  play 60
+end`)
+        expect(result.ok).toBe(true)
+        // define declares a function — it schedules nothing at vt 0, so no gate.
+        expect(result.code).not.toContain('__startGate')
+      })
     })
 
     // Regression for #163 — `synth :NAME, note: 60` used to transpile to
@@ -618,6 +773,57 @@ end`)
       expect(result.code).toContain('live_loop("__inthread_loop_0"')
     })
 
+    // Issue #426/SP111: `loop do` inside with_fx used to emit a synchronous
+    // build-time `while(true) { __b.play; __b.sleep }` (the sleep-step resets
+    // the budget guard every iteration → infinite Step[] push → renderer OOM).
+    // crushed.rb (`with_fx :bitcrusher do loop do … end end`) crashed the tab.
+    // Fix hoists the loop to an auto-named live_loop INSIDE the fx (top-level
+    // `with_fx{live_loop}` is the proven FX-routing path), exactly like a
+    // top-level / in_thread loop (SV16).
+    it('hoists loop do inside with_fx to a live_loop, not build-time while(true) (#426)', () => {
+      const result = treeSitterTranspile(`with_fx :bitcrusher do
+  loop do
+    play 50
+    sleep 0.5
+  end
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).not.toContain('while (true)')
+      expect(result.code).toContain('with_fx("bitcrusher"')
+      expect(result.code).toContain('live_loop("__fxloop_0"')
+      // `live_loop` is a free function (never `__b.live_loop`) — that would throw
+      // "is not a function".
+      expect(result.code).not.toContain('__b.live_loop')
+      expect(() => new Function(result.code)).not.toThrow()
+    })
+
+    it('keeps setup statements before loop in with_fx; hoists the loop (#426)', () => {
+      const result = treeSitterTranspile(`with_fx :reverb do
+  play 72
+  loop do
+    play 50
+    sleep 0.5
+  end
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).not.toContain('while (true)')
+      expect(result.code).toContain('with_fx("reverb"')
+      expect(result.code).toContain('live_loop("__fxloop_0"')
+    })
+
+    it('with_fx wrapping live_loop is unchanged by the #426 loop-hoist', () => {
+      const result = treeSitterTranspile(`with_fx :bitcrusher do
+  live_loop :crush do
+    play 50
+    sleep 0.5
+  end
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).toContain('with_fx("bitcrusher"')
+      expect(result.code).toContain('live_loop("crush"')
+      expect(result.code).not.toContain('__fxloop')
+    })
+
     it('define with block params', () => {
       const result = treeSitterTranspile(`define :bass_hit do
   sample :bd_haus, amp: 2
@@ -628,9 +834,11 @@ live_loop :groove do
   sleep 0.5
 end`)
       expect(result.ok).toBe(true)
-      expect(result.code).toContain('function bass_hit(__b)')
+      // User-defined functions live in a reserved namespace (#432) so a local
+      // variable can never shadow the call.
+      expect(result.code).toContain('function __spdef_bass_hit(__b)')
       // Call to defined function should inject __b
-      expect(result.code).toContain('bass_hit(__b)')
+      expect(result.code).toContain('__spdef_bass_hit(__b)')
     })
 
     it('ndefine produces same JS function decl as define (#211)', () => {
@@ -643,8 +851,8 @@ live_loop :run do
   sleep 1
 end`)
       expect(result.ok).toBe(true)
-      expect(result.code).toContain('function hit(__b)')
-      expect(result.code).toContain('hit(__b)')
+      expect(result.code).toContain('function __spdef_hit(__b)')
+      expect(result.code).toContain('__spdef_hit(__b)')
     })
   })
 
@@ -699,6 +907,36 @@ end`)
       expect(result.ok).toBe(true)
       expect(result.code).toContain('//')
     })
+
+    it('inline # comment inside a multi-line array literal does not break the flattened literal (orchard_improv)', () => {
+      // The array is comma-joined onto one JS line, so a `//` comment child would
+      // swallow the rest of the array. Drop comment children instead.
+      const result = treeSitterTranspile(`pent = [#:B1, :Cs2,
+        :Fs2, :Gs2,
+        :B2]
+play pent[0]`)
+      expect(result.ok).toBe(true)
+      expect(result.code).toContain('pent = ["Fs2", "Gs2", "B2"]')
+      expect(result.code).not.toContain('[//')
+    })
+
+    it('inline # comment inside an argument list does not break the call (same class as #436)', () => {
+      const result = treeSitterTranspile(`play 60, # the root
+        amp: 0.5`)
+      expect(result.ok).toBe(true)
+      expect(result.code).not.toContain(', //')
+      expect(result.code).toContain('amp: 0.5')
+    })
+
+    it('.to_int lowers to Math.floor like .to_i (orchard_improv `lene.to_int.times`)', () => {
+      const result = treeSitterTranspile(`n = 5
+n.to_int.times do
+  play 60
+  sleep 0.1
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).toContain('Math.floor(n)')
+    })
   })
 
   describe('Advanced constructs', () => {
@@ -715,7 +953,36 @@ live_loop :t do
   sleep 4
 end`)
       expect(result.ok).toBe(true)
-      expect(result.code).toContain('function ocean(__b, num, amp_mul = 1)')
+      expect(result.code).toContain('function __spdef_ocean(__b, num, amp_mul = 1)')
+    })
+
+    it('a local variable does not clobber a same-named define call (#432)', () => {
+      // Ruby keeps method names and local variables in separate namespaces:
+      // `synths = [...]` is a local, `synths(n)` (with args) calls the define.
+      // JS collapses both into one lexical binding, so the array used to clobber
+      // the `function synths` declaration → "synths is not a function".
+      // Defines must live in a reserved namespace a local can never shadow.
+      const result = treeSitterTranspile(`define :synths do |x|
+  play x
+end
+
+define :go do
+  synths = [60, 62, 64]
+  n = synths.first
+  synths(n)
+end`)
+      expect(result.ok).toBe(true)
+      // Declaration is namespaced…
+      expect(result.code).toContain('function __spdef_synths(__b, x)')
+      // …and so is the call site (with args) — it must NOT resolve to the local.
+      expect(result.code).toContain('__spdef_synths(__b, n)')
+      expect(result.code).not.toMatch(/(?<!__spdef_)\bsynths\(__b, n\)/)
+      // The local variable read/assign stay on the plain name (proxy scope).
+      // `.first` lowers to `[0]`, so the read surfaces as `synths[0]`.
+      expect(result.code).toContain('synths = [60, 62, 64]')
+      expect(result.code).toContain('n = synths[0]')
+      // Persistence registrar keeps the PLAIN string key (#215 cross-eval seed).
+      expect(result.code).toContain('define("synths", __spdef_synths)')
     })
 
     it('begin/rescue', () => {
@@ -1336,6 +1603,48 @@ end`)
       expect(error).toBeUndefined()
       expect(steps[0].tag).toBe('play')
       expect(steps[0].note).toBe(60) // first tick → index 0
+    })
+
+    // #430: `a.rotate!` used to emit invalid JS `a.rotate!()` ("Unexpected
+    // token '!'") which refused sonic_dreams.rb. Bang is now stripped on
+    // receiver methods, and `.rotate` maps to __b.rotate (returns a Ring; the
+    // chained `.first`/`[0]` resolves via the Ring proxy).
+    it('.rotate! strips the bang and rotates left by 1 (#430)', () => {
+      const { steps, error } = executeTranspiled(`live_loop :t do
+  notes = [60, 62, 64]
+  play notes.rotate!.first
+  sleep 1
+end`)
+      expect(error).toBeUndefined()
+      expect(steps[0].tag).toBe('play')
+      expect(steps[0].note).toBe(62) // rotate left 1 → [62,64,60], .first = 62
+    })
+
+    it('.rotate!(n) threads the rotation arg (#430)', () => {
+      const { steps, error } = executeTranspiled(`live_loop :t do
+  notes = [60, 62, 64, 65]
+  play notes.rotate!(2).first
+  sleep 1
+end`)
+      expect(error).toBeUndefined()
+      expect(steps[0].note).toBe(64) // rotate left 2 → [64,65,60,62], .first = 64
+    })
+
+    it('.shuffle! / .sort! receiver bang is stripped (#430)', () => {
+      const sorted = executeTranspiled(`live_loop :t do
+  notes = [64, 60, 62]
+  play notes.sort!.first
+  sleep 1
+end`)
+      expect(sorted.error).toBeUndefined()
+      expect(sorted.steps[0].note).toBe(60) // sort ascending → first = 60
+      // shuffle! must not throw (deterministic value depends on rng seed)
+      const shuffled = executeTranspiled(`live_loop :t do
+  play [60, 62, 64].shuffle!.first
+  sleep 1
+end`)
+      expect(shuffled.error).toBeUndefined()
+      expect(shuffled.steps[0].tag).toBe('play')
     })
 
     it('variable reassignment works (bare assignment, not const)', () => {

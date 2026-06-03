@@ -75,7 +75,7 @@ interface SweepRow {
   category: string
   example: string
   path: string
-  verdict: 'match' | 'diverge' | 'prng-variant' | 'invalid' | 'inconcl' | 'error'
+  verdict: 'match' | 'diverge' | 'prng-variant' | 'invalid' | 'inconcl' | 'error' | 'engine-silent' | 'tool-fail'
   verdictRaw: string
   tempoDesktop: number | null
   tempoWeb: number | null
@@ -106,6 +106,7 @@ interface SweepRow {
   }
   consoleErrors: string[]
   reportTimestamp: string | null
+  snippetSrc: string   // inlined .rb source so the viewer renders it on file:// without fetch()
 }
 
 // Relative paths under EXAMPLES_DIR — recursive or top-level per roster config.
@@ -165,7 +166,13 @@ function parseReport(reportPath: string): Partial<SweepRow> {
       row.verdict = 'diverge'
       const m = row.verdictRaw.match(/at (note|pc) (\d+)/)
       if (m) row.divergeAt = `${m[1]} ${m[2]}`
-    } else if (/INVALID/.test(row.verdictRaw)) row.verdict = 'invalid'
+    }
+    // SV48 (#427): name the missing-WAV layer — ENGINE-SILENT (engine ran, no
+    // audio) and TOOL-FAIL (harness lost a real blob) are distinct from a
+    // precondition INVALID. Matched before INVALID.
+    else if (/^❌ ENGINE-SILENT\b/.test(row.verdictRaw)) row.verdict = 'engine-silent'
+    else if (/^❌ TOOL-FAIL\b/.test(row.verdictRaw)) row.verdict = 'tool-fail'
+    else if (/INVALID/.test(row.verdictRaw)) row.verdict = 'invalid'
     else if (/inconclusive/i.test(row.verdictRaw)) row.verdict = 'inconcl'
     else row.verdict = 'inconcl'
   }
@@ -332,6 +339,7 @@ for (const examplePath of EXAMPLES) {
     webStats: parsed.webStats ?? null,
     consoleErrors: parsed.consoleErrors ?? [],
     reportTimestamp: parsed.reportTimestamp ?? null,
+    snippetSrc: exampleSrc,
     artifacts: { snippet: null, desktopWav: null, webWav: null, spectrogramPng: null, report: null },
   }
   // PRNG-free real divergence: DIVERGE + no PRNG
@@ -383,6 +391,8 @@ const counts = {
   invalid: rows.filter(r => r.verdict === 'invalid').length,
   inconcl: rows.filter(r => r.verdict === 'inconcl').length,
   error: rows.filter(r => r.verdict === 'error').length,
+  engineSilent: rows.filter(r => r.verdict === 'engine-silent').length,
+  toolFail: rows.filter(r => r.verdict === 'tool-fail').length,
   prng: rows.filter(r => r.prng).length,
   prngFreeReal: rows.filter(r => r.prngFreeReal).length,
   heavy: rows.filter(r => r.heavy).length,
@@ -400,6 +410,23 @@ const manifest = {
 }
 
 writeFileSync(OUT_JSON, JSON.stringify(manifest, null, 2))
+
+// Bake the manifest into the static viewer's inline <script id="__manifest__">
+// slot so the page renders on file:// without fetch() (browsers block fetch()
+// on the file:// protocol). The viewer falls back to fetch() when served over
+// http and the slot is empty/null.
+const VIEWER_HTML = resolve(ROOT, 'test_results', `${ROSTER.outDirName}.html`)
+if (existsSync(VIEWER_HTML)) {
+  const html = readFileSync(VIEWER_HTML, 'utf8')
+  const inlineJson = JSON.stringify(manifest).replace(/<\//g, '<\\/') // guard against </script>
+  const slotRe = /(<script id="__manifest__" type="application\/json">)[\s\S]*?(<\/script>)/
+  if (slotRe.test(html)) {
+    writeFileSync(VIEWER_HTML, html.replace(slotRe, `$1${inlineJson}$2`))
+    console.log(`✓ inlined manifest into ${ROSTER.outDirName}.html (renders on file://)`)
+  } else {
+    console.log(`⚠ ${ROSTER.outDirName}.html has no __manifest__ slot — left fetch-only`)
+  }
+}
 
 console.log(`✓ Built ${rows.length} entries → ${OUT_JSON}`)
 console.log(`  match=${counts.match} · prng-variant=${counts.prngVariant} · diverge=${counts.diverge} · invalid=${counts.invalid} · inconcl=${counts.inconcl} · error=${counts.error}`)

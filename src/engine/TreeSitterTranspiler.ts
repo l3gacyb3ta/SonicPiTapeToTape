@@ -180,6 +180,7 @@ export function treeSitterTranspile(ruby: string): TreeSitterTranspileResult {
     definedFunctions: new Set(),
     indent: '',
     inthreadLoopCounter: { n: 0 },
+    fxLoopCounter: { n: 0 },
   }
 
   const js = transpileNode(tree.rootNode, ctx)
@@ -232,6 +233,17 @@ interface TranspileContext {
   srcLine?: number
   /** Hoisted-loop counter for `loop do` inside `in_thread` (issue #205). */
   inthreadLoopCounter?: { n: number }
+  /**
+   * #448/SP118: source-position START-GATE cue name for THIS top-level
+   * construct only. When set, the construct's registration emits
+   * `__startGate: "<name>"` so its first iteration waits for the cue that
+   * `__run_once` fires at the construct's source position → it forks at the
+   * source-position vtime, not vt 0. Set per-block in the blockJS map; MUST NOT
+   * propagate into a block's body (a nested in_thread must not inherit it).
+   */
+  startGate?: string
+  /** Hoisted-loop counter for `loop do` inside `with_fx` (issue #426/SP111). */
+  fxLoopCounter?: { n: number }
   /**
    * SP95(d) #393: true while transpiling the *direct* body of a live_loop,
    * whose wrapper arrow is emitted `async`. Lets `sync` emit `await __b.sync()`
@@ -334,6 +346,28 @@ const BUILDER_METHODS = new Set([
  * Inside a loop, these must NOT get the `b.` prefix —
  * they're captured from the enclosing scope via the Proxy.
  */
+/**
+ * Ruby keeps method names and local variables in SEPARATE namespaces, so a
+ * `define :synths` and a local `synths = [...]` coexist — `synths(n)` calls the
+ * method, bare `synths` reads the local. JS collapses both into one lexical
+ * binding: the bare assignment `synths = [...]` reassigns the `function synths`
+ * declaration's slot (the assignment is lexically resolved, never reaching the
+ * Sandbox proxy), so the later `synths(n)` call hits the array → "synths is not
+ * a function" (#432, sonic_dreams).
+ *
+ * Fix: emit every user-defined function (define / ndefine / def) under a reserved
+ * prefix that a user's local variable can never lexically shadow. Method CALLS
+ * (`synths(n)`, bare-statement `bd`) resolve to the prefixed name; local-variable
+ * reads (`synths.first`, `synths = [...]`) keep the plain name and flow through
+ * the proxy scope — exactly mirroring Ruby's two-namespace rule. The persistence
+ * registrar `define(name, fn)` keeps the PLAIN string key so #215 cross-eval
+ * seeding (proxy resolves a removed define's plain name) still works.
+ */
+const DEF_PREFIX = '__spdef_'
+function defJsName(name: string): string {
+  return DEF_PREFIX + name
+}
+
 const TOP_LEVEL_SCOPE = new Set([
   'live_loop', 'stop_loop', 'define',
   'use_bpm', 'use_synth', 'use_random_seed', 'use_arg_bpm_scaling',
@@ -495,13 +529,19 @@ function transpileNode(node: any, ctx: TranspileContext): string {
       return `[${node.namedChildren.map((c: any) => `"${c.text}"`).join(', ')}]`
 
     case 'array': {
+      // Drop inline `#` comments — a literal is comma-joined onto ONE JS line,
+      // so a `//` comment child would swallow the rest of the array (orchard_improv
+      // `pent = [#:B1, … :Fs2, …]` → broken literal → ENGINE-SILENT). A comment
+      // carries no element value; keeping it would also leave an elision hole.
       const elements = node.namedChildren
+        .filter((c: any) => c.type !== 'comment')
         .map((c: any) => transpileNode(c, ctx))
       return `[${elements.join(', ')}]`
     }
 
     case 'hash': {
       const pairs = node.namedChildren
+        .filter((c: any) => c.type !== 'comment')
         .map((c: any) => transpileNode(c, ctx))
       return `{ ${pairs.join(', ')} }`
     }
@@ -516,7 +556,7 @@ function transpileNode(node: any, ctx: TranspileContext): string {
     }
 
     case 'subarray':
-      return `[${node.namedChildren.map((c: any) => transpileNode(c, ctx)).join(', ')}]`
+      return `[${node.namedChildren.filter((c: any) => c.type !== 'comment').map((c: any) => transpileNode(c, ctx)).join(', ')}]`
 
     // ---- Identifiers ----
     case 'identifier': {
@@ -531,9 +571,10 @@ function transpileNode(node: any, ctx: TranspileContext): string {
       const isStatement = parentType === 'body_statement' || parentType === 'program' ||
                           parentType === 'then' || parentType === 'block_body'
 
-      // Bare identifier that matches a user-defined function → call it with __b
+      // Bare identifier that matches a user-defined function → call it with __b.
+      // Namespaced so a same-named local variable can't shadow the call (#432).
       if (isStatement && ctx.definedFunctions.has(name)) {
-        return `${name}(__b)`
+        return `${defJsName(name)}(__b)`
       }
 
       // Bare identifier that matches a known no-arg DSL function.
@@ -822,7 +863,9 @@ function transpileNode(node: any, ctx: TranspileContext): string {
         ? params.namedChildren.map((c: any) => transpileNode(c, ctx)).join(', ')
         : ''
       const bodyStr = body ? transpileNode(body, ctx) : ''
-      return `function ${nameNode.text}(${paramStr}) {\n${bodyStr}\n${ctx.indent}}`
+      // Namespaced (#432) — calls resolve via defJsName; keeps def out of the
+      // local-variable namespace, mirroring Ruby's method-vs-local separation.
+      return `function ${defJsName(nameNode.text)}(${paramStr}) {\n${bodyStr}\n${ctx.indent}}`
     }
 
     // ---- Lambda ----
@@ -978,7 +1021,13 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
     if (method !== 'with_fx') return false
     // Check if with_fx contains a live_loop — if so, it's a block, not bare
     const text = c.text ?? ''
-    return !/live_loop/.test(text)
+    if (/live_loop/.test(text)) return false
+    // #426/SP111: a with_fx wrapping a bare `loop do` is ALSO a registering
+    // block (the loop is hoisted to an auto-named live_loop inside the fx),
+    // NOT bare code. Routing it through __run_once would emit a synchronous
+    // build-time `while(true)` → infinite Step[] push → renderer OOM.
+    const wfBlk = c.namedChildren.find((x: any) => x.type === 'do_block' || x.type === 'block')
+    return !(wfBlk && blockBodyHasBareLoop(wfBlk))
   })
   // Top-level `loop do … end` triggers the split so it can be hoisted to a
   // named live_loop. Without this flag, a program that contains only
@@ -1009,6 +1058,19 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
   let currentTopSynth: string | null = null
   const blockSynth = new Map<any, string | null>()
 
+  // #448/SP118: source-position START-GATE for top-level `in_thread`. When an
+  // in_thread is declared after vtime-advancing bare code (`sleep`/`sync`), it
+  // must fork at that source-position vtime (desktop fork-at-current-vtime), not
+  // vt 0. We keep it on its normal separately-scheduled path (NOT inlined into
+  // `__run_once` — that deadlocks on `sync`, see SP118 trap (c)); instead the
+  // construct waits for a `cue("__sg_N")` that `__run_once` fires at the
+  // construct's source position. `seenVtimeAdvancingBareCode` arms the gate;
+  // `blockGate` tags the gated block with its cue name; a synthetic marker in
+  // `bareCode` (rendered as `__b.cue(...)`) carries the fire site in source order.
+  let seenVtimeAdvancingBareCode = false
+  let startGateCounter = 0
+  const blockGate = new Map<any, string>()
+
   for (const child of children) {
     if (child.type === 'comment') {
       bareCode.push(child)
@@ -1024,8 +1086,15 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
       currentTopSynth = extractLiteralSynthArg(child)
     }
 
-    // Bare with_fx (no live_loop inside) should be treated as bare code, not a block
-    const isBareFxNode = method === 'with_fx' && !/live_loop/.test(child.text ?? '')
+    // Bare with_fx (no live_loop inside) should be treated as bare code, not a
+    // block — UNLESS it wraps a bare `loop do`, which is hoisted to a live_loop
+    // inside the fx (#426/SP111). Mirrors the hasBareFx check above.
+    const wfBlk = method === 'with_fx'
+      ? child.namedChildren.find((x: any) => x.type === 'do_block' || x.type === 'block')
+      : null
+    const isBareFxNode = method === 'with_fx'
+      && !/live_loop/.test(child.text ?? '')
+      && !(wfBlk && blockBodyHasBareLoop(wfBlk))
 
     // Bare top-level `loop do … end` — route to blocks and emit below as a
     // dedicated auto-named live_loop (SV16 — do not let the loop become
@@ -1042,8 +1111,33 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
                           method === 'in_thread' || isBareLoopNode)) {
       blocks.push(child)
       blockSynth.set(child, currentTopSynth)
+      // #448/SP118: gate a top-level loop/thread declared after vtime-advancing
+      // bare code so it forks at the source-position vtime (desktop fork-at-
+      // current-vtime), not vt 0. Assign a unique cue and drop a marker into
+      // bareCode at THIS source position; `__run_once` fires the cue there, and
+      // the construct (which stays on its normal launch-registered path) waits
+      // for it before its first iteration. A construct at the top (no preceding
+      // sleep/sync) keeps the un-gated vt-0 start (correct there).
+      // Gate-eligible = constructs that register a scheduled loop/thread at
+      // launch: `in_thread`, `live_loop`, an auto-named bare `loop do`, and a
+      // `with_fx` wrapping such a loop (the gate threads to the INNER loop).
+      // NOT `define`/`ndefine`/`defonce` — they declare functions, they do not
+      // schedule anything at vt 0.
+      const gateEligible = method === 'in_thread' || method === 'live_loop' ||
+        isBareLoopNode || (method === 'with_fx' && !isBareFxNode)
+      if (gateEligible && seenVtimeAdvancingBareCode) {
+        const gate = `__sg_${startGateCounter++}`
+        blockGate.set(child, gate)
+        bareCode.push({ __sgMarker: gate })
+      }
     } else {
       bareCode.push(child)
+      // #448/SP118: arm the gate once a vtime-ADVANCING bare statement appears.
+      // `sleep`/`sync` advance the __run_once cursor; pure settings/assignments/
+      // puts/play/cue do not. Word-boundary token scan — cheap, conservative
+      // (a sleep hidden inside a called define() is not detected → that rarer
+      // shape keeps the existing vt-0 start, no regression).
+      if (/\b(?:sleep|sync)\b/.test(child.text ?? '')) seenVtimeAdvancingBareCode = true
     }
   }
 
@@ -1075,7 +1169,13 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
   // so `await __b.sync()` is legal there too.
   const bareCtx: TranspileContext = { ...ctx, insideLoop: true, asyncBody: true }
   const bareJS = bareCode
-    .map(c => '  ' + transpileNode(c, bareCtx))
+    // #448/SP118: a synthetic start-gate marker fires the gate cue at the gated
+    // in_thread's source position — `__run_once` reaches it at the accumulated
+    // cursor vtime, so the waiting in_thread forks there. (cue is non-blocking,
+    // unlike sync — no build deadlock; SP118 trap (c).)
+    .map(c => (c && (c as any).__sgMarker)
+      ? `  __b.cue(${JSON.stringify((c as any).__sgMarker)})`
+      : '  ' + transpileNode(c, bareCtx))
     .filter(s => s.trim())
 
   // Transpile block-level constructs. Top-level bare `loop do … end` blocks
@@ -1119,10 +1219,20 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
         const bodyCtx: TranspileContext = { ...ctx, insideLoop: true, asyncBody: true }
         const bodyStr = transpileBlockBody(body, bodyCtx)
         const name = `__loop_${topLoopCounter++}`
-        return `${eagerPrefix}live_loop("${name}", async (__b) => {\n${bodyStr}\n${ctx.indent}})`
+        // #448/SP118: gate this hoisted bare `loop do` if it follows vtime-
+        // advancing bare code (blockGate set in classification) so it forks at
+        // the source-position vtime, not vt 0 — same start-gate as live_loop.
+        const gate = blockGate.get(c)
+        const optsArg = gate ? `{__startGate: ${JSON.stringify(gate)}}, ` : ''
+        return `${eagerPrefix}live_loop("${name}", ${optsArg}async (__b) => {\n${bodyStr}\n${ctx.indent}})`
       }
     }
-    return eagerPrefix + transpileNode(c, ctx)
+    // #448/SP118: thread this block's start-gate (if gated) into the per-block
+    // ctx so transpileInThread emits `__startGate` in its registration opts. The
+    // gate is consumed by THIS construct only — transpileInThread must not leak
+    // it into the body (a nested in_thread must not inherit it).
+    const blockCtx: TranspileContext = blockGate.has(c) ? { ...ctx, startGate: blockGate.get(c) } : ctx
+    return eagerPrefix + transpileNode(c, blockCtx)
   }).filter(Boolean)
 
   const parts: string[] = []
@@ -1298,10 +1408,11 @@ function transpileMethodCall(node: any, ctx: TranspileContext): string {
       return `__b.play(${args}, { synth: "${methodName}" })`
     }
 
-    // User-defined function call
+    // User-defined function call — namespaced so a same-named local variable
+    // can't shadow the call (#432). The local read keeps the plain name.
     if (ctx.definedFunctions.has(methodName)) {
       const args = argsNode ? transpileArgList(argsNode, ctx) : ''
-      return `${methodName}(__b${args ? ', ' + args : ''})`
+      return `${defJsName(methodName)}(__b${args ? ', ' + args : ''})`
     }
 
     // Methods ending with ? — rename to _q, with b. prefix (on ProgramBuilder)
@@ -1365,7 +1476,14 @@ function transpileReceiverMethodCall(
   receiver: any, methodNode: any, argsNode: any, blockNode: any,
   fullNode: any, ctx: TranspileContext
 ): string {
-  const method = methodNode.text
+  // Strip the Ruby bang (!) from receiver method names — `a.rotate!` → `rotate`,
+  // `a.shuffle!` → `shuffle`, `a.sort!` → `sort` (#430). JS has no `!`-suffixed
+  // method names, so passing the bang through emits invalid JS (`a.rotate!()` →
+  // "Unexpected token '!'", which refused sonic_dreams.rb). Mirrors the bare-call
+  // strip at the top of transpileMethodCall. In-place mutation semantics are not
+  // preserved (copy semantics) — that only matters for exact non-PRNG parity.
+  const rawMethod = methodNode.text
+  const method = rawMethod.endsWith('!') ? rawMethod.slice(0, -1) : rawMethod
   const recStr = transpileNode(receiver, ctx)
 
   // N.times do |i| ... end
@@ -1453,6 +1571,14 @@ function transpileReceiverMethodCall(
     return `__b.shuffle(${recStr})`
   }
 
+  // .rotate(n) → __b.rotate(receiver, n) — works on arrays and Rings (#430).
+  // `rotate!` reaches here too (bang stripped above). Returns a Ring, so a
+  // chained `.first`/`[0]` resolves via the Ring proxy.
+  if (method === 'rotate') {
+    const args = argsNode ? transpileArgList(argsNode, ctx) : ''
+    return args ? `__b.rotate(${recStr}, ${args})` : `__b.rotate(${recStr})`
+  }
+
   // .mirror(n) / .reflect(n) → thread the optional repeat arg (desktop
   // core.rb:796-805 both take n=1). #354 — was hardcoded `.mirror()`,
   // silently dropping `n`.
@@ -1510,8 +1636,10 @@ function transpileReceiverMethodCall(
     return recStr
   }
 
-  // .to_i → Math.floor
-  if (method === 'to_i') {
+  // .to_i / .to_int → Math.floor. Ruby's Integer#to_int is the implicit-coercion
+  // alias of to_i; orchard_improv uses `lene.to_int.times`. Without this, a number
+  // has no `.to_int` method → "x.to_int is not a function".
+  if (method === 'to_i' || method === 'to_int') {
     return `Math.floor(${recStr})`
   }
 
@@ -1742,14 +1870,28 @@ function transpileLiveLoop(
     return `/* parse error: live_loop :${name} missing block */`
   }
 
+  // #448/SP118: source-position start-gate for this top-level live_loop (set by
+  // the blockJS per-block ctx when the live_loop follows vtime-advancing bare
+  // code, or threaded in by a wrapping with_fx). Consumed HERE only — stripped
+  // from the body ctx below so a nested live_loop / in_thread does not inherit
+  // it (it would wait on the same cue and start at the wrong vtime).
+  const startGateName = ctx.startGate ?? null
+
   // SP95(d) #393: live_loop body is emitted `async` so `await __b.sync()` can
   // resolve a cue payload mid-build. asyncBody scopes that await to this arrow.
-  const bodyCtx: TranspileContext = { ...ctx, insideLoop: true, asyncBody: true }
+  const bodyCtx: TranspileContext = { ...ctx, startGate: undefined, insideLoop: true, asyncBody: true }
   const bodyStr = transpileBlockBody(blockNode, bodyCtx)
 
-  // sync: option — pass as registration option (one-time sync before first iteration),
-  // NOT as b.sync() inside the body (which would re-sync every iteration).
-  const optsArg = syncName ? `{sync: "${syncName}"}, ` : ''
+  // sync:/delay:/start-gate options — pass as a registration opts hash (applied
+  // once before the first iteration), NOT as body calls. #447: `delay` was
+  // parsed into extraOpts above but the opts hash only emitted `sync`, silently
+  // dropping it. #448: `__startGate` gates the first iteration on the cue
+  // `__run_once` fires at this source position (awaited before the user `sync:`).
+  const optsParts: string[] = []
+  if (syncName) optsParts.push(`sync: "${syncName}"`)
+  optsParts.push(...extraOpts)
+  if (startGateName !== null) optsParts.push(`__startGate: ${JSON.stringify(startGateName)}`)
+  const optsArg = optsParts.length > 0 ? `{${optsParts.join(', ')}}, ` : ''
 
   return `live_loop("${name}", ${optsArg}async (__b) => {\n${bodyStr}\n${ctx.indent}})`
 }
@@ -1786,9 +1928,13 @@ function transpileDefine(
   // For `define`, also call the runtime registrar so the engine persists the
   // function across re-evals (#215). `ndefine` skips this — its semantic is
   // per-eval only.
-  const decl = `function ${name}(__b${paramStr ? ', ' + paramStr : ''}) {\n${bodyStr}\n${ctx.indent}}`
+  // Namespaced JS binding (#432) so a same-named local variable can't clobber
+  // the function. The persistence registrar keeps the PLAIN string key — proxy
+  // seeding of a removed define (#215) resolves by plain name.
+  const jsName = defJsName(name)
+  const decl = `function ${jsName}(__b${paramStr ? ', ' + paramStr : ''}) {\n${bodyStr}\n${ctx.indent}}`
   if (methodName === 'define') {
-    return `${decl};\n${ctx.indent}define(${JSON.stringify(name)}, ${name})`
+    return `${decl};\n${ctx.indent}define(${JSON.stringify(name)}, ${jsName})`
   }
   return decl
 }
@@ -1858,6 +2004,83 @@ function transpileDefonce(
   return `${name} = defonce(${JSON.stringify(name)}, ${optsStr}, (__b) => {\n${stmts.join('\n')}\n${ctx.indent}})`
 }
 
+/**
+ * Drill into a do_block/block's `body_statement` wrapper to get the real
+ * statement children (skipping any block_parameters). Mirrors the body
+ * extraction in transpileInThread (#205).
+ */
+function blockBodyChildren(blockNode: any): any[] {
+  const raw = (blockNode?.namedChildren ?? []).filter((c: any) => c.type !== 'block_parameters')
+  if (raw.length === 1 && raw[0]?.type === 'body_statement') {
+    return raw[0].namedChildren ?? []
+  }
+  return raw
+}
+
+/** True if a do/brace block directly contains a `loop do … end` statement (#426/SP111). */
+function blockBodyHasBareLoop(blockNode: any): boolean {
+  return blockBodyChildren(blockNode).some((c: any) => {
+    const m = (c.type === 'call' || c.type === 'method_call')
+      ? (c.childForFieldName('method')?.text ?? c.namedChildren[0]?.text)
+      : null
+    return m === 'loop' && c.namedChildren.some((x: any) => x.type === 'do_block' || x.type === 'block')
+  })
+}
+
+/**
+ * Transpile a with_fx body that contains a bare `loop do`, hoisting each loop
+ * to an auto-named live_loop INSIDE the fx callback (#426/SP111, SV16). Setup
+ * statements before the loop are emitted as-is; statements after a loop are
+ * unreachable (a `loop` runs forever) and dropped with a warning — same policy
+ * as transpileInThread.
+ */
+function transpileWithFxLoopBody(
+  blockNode: any, bodyCtx: TranspileContext, ctx: TranspileContext
+): string {
+  const counter = ctx.fxLoopCounter ?? { n: 0 }
+  // `live_loop` is always a FREE function (a global from the sandbox scope),
+  // never a ProgramBuilder method — transpileLiveLoop emits it unprefixed at
+  // every depth, and BUILDER_METHODS excludes it. So emit it unprefixed here
+  // too; `__b.live_loop` would throw "is not a function".
+  const parts: string[] = []
+  let sawLoop = false
+  let droppedAfterLoop = false
+  for (const child of blockBodyChildren(blockNode)) {
+    const m = (child.type === 'call' || child.type === 'method_call')
+      ? (child.childForFieldName('method')?.text ?? child.namedChildren[0]?.text)
+      : null
+    const isLoop = m === 'loop' &&
+      child.namedChildren.some((c: any) => c.type === 'do_block' || c.type === 'block')
+    if (isLoop) {
+      const body = child.namedChildren.find((c: any) => c.type === 'do_block' || c.type === 'block')
+      // live_loop bodies are emitted async (SP95(d) — `await __b.sync()`).
+      // #448/SP118: strip the start-gate from the inner body ctx — it is
+      // consumed by the hoisted `__fxloop_N` live_loop opts below, not by a
+      // nested construct inside the loop body.
+      const innerCtx: TranspileContext = { ...bodyCtx, startGate: undefined, insideLoop: true, asyncBody: true }
+      const innerStr = transpileBlockBody(body, innerCtx)
+      const idx = counter.n++
+      // #448/SP118: a `with_fx` wrapping a bare `loop do` after vtime-advancing
+      // bare code threads its start-gate (bodyCtx.startGate, set by the wrapping
+      // with_fx's block ctx) onto the hoisted live_loop so it forks at the
+      // source-position vtime, not vt 0.
+      const gate = bodyCtx.startGate
+      const optsArg = gate ? `{__startGate: ${JSON.stringify(gate)}}, ` : ''
+      parts.push(`${ctx.indent}  live_loop("__fxloop_${idx}", ${optsArg}async (__b) => {\n${innerStr}\n${ctx.indent}  })`)
+      sawLoop = true
+    } else if (sawLoop) {
+      droppedAfterLoop = true
+    } else {
+      parts.push(`${ctx.indent}  ${transpileNode(child, bodyCtx)}`)
+    }
+  }
+  if (droppedAfterLoop) {
+    const line = blockNode.startPosition?.row != null ? blockNode.startPosition.row + 1 : '?'
+    ctx.errors.push(`Warning at line ${line}: statements after \`loop do\` inside with_fx are unreachable and were dropped.`)
+  }
+  return parts.filter(s => s.trim()).join('\n')
+}
+
 function transpileWithBlock(
   methodName: string, argsNode: any, blockNode: any, ctx: TranspileContext
 ): string {
@@ -1895,7 +2118,18 @@ function transpileWithBlock(
   const bodyCtx: TranspileContext = ctx.insideLoop
     ? { ...ctx, insideLoop: true }
     : { ...ctx }  // keep insideLoop false — live_loops inside will set their own
-  const bodyStr = transpileBlockBody(blockNode, bodyCtx)
+  // #426/SP111: a bare `loop do … end` directly inside with_fx must be hoisted
+  // to an auto-named live_loop, exactly as top-level (lines ~1116) and in_thread
+  // (transpileInThread) loops are (SV16). Building it inline emits a synchronous
+  // `while(true) { __b.play; __b.sleep }` whose build-time sleep-step resets the
+  // budget guard every iteration → infinite Step[] push during the build pass →
+  // renderer OOM (issue #426 / crushed.rb). The live_loop stays INSIDE the
+  // with_fx callback so the FX bus still wraps it (SV13). Only with_fx is
+  // affected because it is the only with-block that reaches `blocks` (registering
+  // path); other with-blocks keep current behaviour.
+  const bodyStr = (methodName === 'with_fx' && blockBodyHasBareLoop(blockNode))
+    ? transpileWithFxLoopBody(blockNode, bodyCtx, ctx)
+    : transpileBlockBody(blockNode, bodyCtx)
 
   const optsStr = opts.length > 0 ? `{ ${opts.join(', ')} }` : ''
   const posStr = positional.join(', ')
@@ -1931,15 +2165,34 @@ function transpileInThread(
   // Resolve `name:` option (used both for the in_thread wrapper and as a base
   // for hoisted-loop names so hot-swap is stable across re-evaluation).
   let nameExpr: string | null = null
+  // #447: `in_thread delay: N` — initial delay in beats before the body
+  // (desktop runtime.rb:1196). Was parsed for `name:` only; `delay:` dropped.
+  let delayExpr: string | null = null
   const args = argsNode?.namedChildren ?? []
   for (const arg of args) {
     if (arg.type === 'pair') {
       const key = arg.namedChildren[0]?.text?.replace(/:$/, '')
       if (key === 'name') {
         nameExpr = transpileNode(arg.namedChildren[1], ctx)
+      } else if (key === 'delay') {
+        delayExpr = transpileNode(arg.namedChildren[1], ctx)
       }
     }
   }
+  // #448/SP118: this top-level in_thread's source-position start-gate (set by
+  // the blockJS per-block ctx). Emit it in the registration opts so the engine's
+  // topLevelInThread gates the thread's first iteration on the cue __run_once
+  // fires at this source position. Consumed HERE only — never propagated into
+  // the body (a nested in_thread must not inherit it): all body ctxs below are
+  // built from `ctxNoGate`.
+  const startGateName = ctx.startGate ?? null
+  const ctxNoGate: TranspileContext = startGateName ? { ...ctx, startGate: undefined } : ctx
+  // The registration opts hash, built once (name + delay + start-gate) for every emit site.
+  const itOptsParts: string[] = []
+  if (nameExpr !== null) itOptsParts.push(`name: ${nameExpr}`)
+  if (delayExpr !== null) itOptsParts.push(`delay: ${delayExpr}`)
+  if (startGateName !== null) itOptsParts.push(`__startGate: ${JSON.stringify(startGateName)}`)
+  const itOpts = itOptsParts.length > 0 ? `{ ${itOptsParts.join(', ')} }, ` : ''
 
   // SV16 / issue #205: `loop do` inside an in_thread body must be hoisted to
   // a sibling auto-named live_loop. Building it inline emits `while(true) {
@@ -1975,12 +2228,9 @@ function transpileInThread(
 
   if (loopChildren.length === 0) {
     // No nested loop → original codepath.
-    const bodyCtx: TranspileContext = { ...ctx, insideLoop: true }
+    const bodyCtx: TranspileContext = { ...ctxNoGate, insideLoop: true }
     const bodyStr = transpileBlockBody(blockNode, bodyCtx)
-    if (nameExpr !== null) {
-      return `${prefix}in_thread({ name: ${nameExpr} }, (__b) => {\n${bodyStr}\n${ctx.indent}})`
-    }
-    return `${prefix}in_thread((__b) => {\n${bodyStr}\n${ctx.indent}})`
+    return `${prefix}in_thread(${itOpts}(__b) => {\n${bodyStr}\n${ctx.indent}})`
   }
 
   if (droppedAfterLoop) {
@@ -1998,21 +2248,17 @@ function transpileInThread(
   const parts: string[] = []
 
   if (setupChildren.length > 0) {
-    const setupCtx: TranspileContext = { ...ctx, insideLoop: true }
+    const setupCtx: TranspileContext = { ...ctxNoGate, insideLoop: true }
     const setupStr = setupChildren
       .map(c => '  ' + transpileNode(c, setupCtx))
       .filter(s => s.trim())
       .join('\n')
-    if (nameExpr !== null) {
-      parts.push(`${prefix}in_thread({ name: ${nameExpr} }, (__b) => {\n${setupStr}\n${ctx.indent}})`)
-    } else {
-      parts.push(`${prefix}in_thread((__b) => {\n${setupStr}\n${ctx.indent}})`)
-    }
+    parts.push(`${prefix}in_thread(${itOpts}(__b) => {\n${setupStr}\n${ctx.indent}})`)
   }
 
   for (const loopNode of loopChildren) {
     const body = loopNode.namedChildren.find((c: any) => c.type === 'do_block' || c.type === 'block')
-    const bodyCtx: TranspileContext = { ...ctx, insideLoop: true }
+    const bodyCtx: TranspileContext = { ...ctxNoGate, insideLoop: true }
     const bodyStr = transpileBlockBody(body, bodyCtx)
     const idx = counter.n++
     const autoName = baseName !== null
@@ -2381,6 +2627,10 @@ function transpileArgList(node: any, ctx: TranspileContext, injectSrcLine = fals
   const kwargs: string[] = []
 
   for (const arg of args) {
+    // Inline `#` comments are comma-joined with real args onto one JS line; a
+    // `//` would swallow the rest of the call. Drop them (#436, same class as
+    // the array/hash literal fix).
+    if (arg.type === 'comment') continue
     if (arg.type === 'pair') {
       const key = arg.namedChildren[0]
       const val = arg.namedChildren[1]
