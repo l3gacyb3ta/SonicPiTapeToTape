@@ -486,6 +486,34 @@ export class ProgramBuilder {
   }
 
   /**
+   * time_warp — run the block INLINE (same thread) with virtual time shifted by
+   * `delta` beats, then RESTORE the pre-warp time (desktop `core.rb:1040-1092`,
+   * `__with_preserved_spider_time_and_beat`). Unlike `at`/`in_thread` it does NOT
+   * fork: ticks and the random stream are SHARED (forkBuilder('same-thread'),
+   * SV45) — `with_swing` relies on the `tick` inside it advancing the surrounding
+   * loop's stream. Negative deltas shift the block EARLIER in time (bounded by
+   * schedAhead). A list of times runs the block once per time, each independently
+   * preserved (params ring through). The shift is NOT density-scaled
+   * (core.rb:1108), though sleeps inside the block are.
+   */
+  time_warp(times: number | number[], values: unknown[] | null, buildFn: (b: ProgramBuilder, ...args: unknown[]) => void): this {
+    const timesArr: number[] = Array.isArray(times) ? times : [times]
+    for (let i = 0; i < timesArr.length; i++) {
+      const delta = timesArr[i]
+      const val = values ? values[i % values.length] : i
+      const inner = this.forkBuilder('same-thread')
+      // Shift the build-phase clock by delta (NOT density-scaled) so
+      // current_time / get inside the warp read the shifted time. The interpreter
+      // applies the matching shift to task.virtualTime, then restores it.
+      inner._currentBeat += delta
+      inner._currentBuildSeconds += (delta * 60) / inner._currentBpm
+      buildFn(inner, val)
+      this.steps.push({ tag: 'timeWarp', deltaBeats: delta, body: inner.build() })
+    }
+    return this
+  }
+
+  /**
    * Single source of truth for which per-thread / per-build state threads into
    * a nested block's sub-builder. Replaces three hand-maintained copies that
    * had drifted (#343). Desktop SP semantics (ref/sources/desktop-sp):
@@ -1192,6 +1220,31 @@ export class ProgramBuilder {
     this.densityFactor = prev * factor
     buildFn(this)
     this.densityFactor = prev
+    return this
+  }
+
+  /**
+   * with_swing — run the block through `time_warp(shift)` on every `pulse`-th
+   * call, inline otherwise, producing a swing feel (#356). Desktop
+   * `core.rb:382-404`: `use_shift = ((tick(key) + offset) % pulse) == 0`. The
+   * tick uses a SEPARATE key (`:swing` by default) so it never clashes with the
+   * loop's own `tick`; it persists across iterations (the loop's tick map), so
+   * call N swings iff `(N + offset) % pulse == 0`. Args come as an opts object
+   * from the transpiler: `{ shift, pulse, tick, offset }` (positional shift/pulse/
+   * tick/offset folded into it). Defaults: shift 0.1, pulse 4, tick :swing,
+   * offset 0.
+   */
+  with_swing(opts: Record<string, unknown>, buildFn: (b: ProgramBuilder) => void): this {
+    const shift = typeof opts.shift === 'number' ? opts.shift : 0.1
+    const pulse = typeof opts.pulse === 'number' ? opts.pulse : 4
+    const key = opts.tick != null ? String(opts.tick) : 'swing'
+    const offset = typeof opts.offset === 'number' ? opts.offset : 0
+    const useShift = ((this.tick(key) + offset) % pulse) === 0
+    if (useShift) {
+      this.time_warp(shift, null, buildFn)
+    } else {
+      buildFn(this)
+    }
     return this
   }
 

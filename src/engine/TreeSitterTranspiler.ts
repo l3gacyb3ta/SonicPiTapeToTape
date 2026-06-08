@@ -295,7 +295,7 @@ const BUILDER_METHODS = new Set([
   'factor_q', 'bools', 'play_pattern_timed', 'sample_duration', 'stretch', 'ramp',
   'hz_to_midi', 'midi_to_hz', 'quantise', 'quantize', 'octs',
   'kill', 'play_chord', 'play_pattern', 'tuplets',
-  'with_octave', 'with_random_seed', 'with_density',
+  'with_octave', 'with_random_seed', 'with_density', 'with_swing',
   'noteToMidi', 'midiToFreq', 'noteToFreq', 'note_info',
   // Data constructors
   'ring', 'knit', 'range', 'line', 'spread',
@@ -1359,6 +1359,15 @@ function transpileMethodCall(node: any, ctx: TranspileContext): string {
       return transpileDefonce(node, argsNode, blockNode, ctx)
     }
 
+    // with_tempo is the deprecated v1.0 name for with_bpm — desktop RAISES a
+    // DeprecationError since v2.0 (core.rb:3641-3642). We keep the user's code
+    // running by aliasing it to with_bpm and emit a build-time deprecation
+    // warning (Sp95Lint) — loud-not-silent, mirroring the with_density
+    // precedent (#379/SV60). #495 / GAP D.
+    if (methodName === 'with_tempo') {
+      return transpileWithBlock('with_bpm', argsNode, blockNode, ctx)
+    }
+
     // with_fx :name, opts do ... end
     if (methodName === 'with_fx' || methodName === 'with_synth' || methodName === 'with_bpm' || methodName === 'with_transpose' || methodName === 'with_arg_bpm_scaling' || methodName === 'with_synth_defaults' || methodName === 'with_sample_defaults' || methodName === 'with_random_seed' || methodName === 'with_octave' || methodName === 'with_arg_checks' || methodName === 'with_debug' || methodName === 'with_timing_guarantees' || methodName === 'with_merged_synth_defaults' || methodName === 'with_merged_sample_defaults') {
       return transpileWithBlock(methodName, argsNode, blockNode, ctx)
@@ -1377,6 +1386,11 @@ function transpileMethodCall(node: any, ctx: TranspileContext): string {
     // time_warp offset do ... end
     if (methodName === 'time_warp') {
       return transpileTimeWarp(argsNode, blockNode, ctx)
+    }
+
+    // with_swing shift, pulse, tick:, offset: do ... end  (#356)
+    if (methodName === 'with_swing') {
+      return transpileWithSwing(argsNode, blockNode, ctx)
     }
 
     // tuplets [list], opts do |x| ... end  (#233)
@@ -2633,13 +2647,56 @@ function transpileTimeWarp(
     return `/* parse error: time_warp missing block */`
   }
 
-  const offset = argsNode?.namedChildren[0]
-    ? transpileNode(argsNode.namedChildren[0], ctx)
-    : '0'
+  // #357: time_warp is an INLINE time shift (same thread — shared ticks/rng),
+  // NOT a forked thread. The prior `at([offset], …)` mapping forked a thread,
+  // which broke tick-gating (with_swing) and couldn't shift earlier (negative
+  // offsets). Emit `time_warp(times, params, fn)` → ProgramBuilder.time_warp,
+  // which brackets the body in a virtual-time shift and restores after. Positional
+  // args are `times` and (optional) `params`; the builder rings params through
+  // and normalises a scalar time. `__b.` routes through the builder both inside a
+  // loop and in top-level bare code (the __run_once wrap) — same as the old `at`.
+  const posArgs = (argsNode?.namedChildren ?? []).filter((a: any) => a.type !== 'pair')
+  const times = posArgs[0] ? transpileNode(posArgs[0], ctx) : '0'
+  const params = posArgs[1] ? transpileNode(posArgs[1], ctx) : 'null'
   const prefix = ctx.insideLoop ? '__b.' : ''
   const bodyCtx: TranspileContext = { ...ctx, insideLoop: true }
   const bodyStr = transpileBlockBody(blockNode, bodyCtx)
-  return `${prefix}at([${offset}], null, (__b) => {\n${bodyStr}\n${ctx.indent}})`
+  return `${prefix}time_warp(${times}, ${params}, (__b) => {\n${bodyStr}\n${ctx.indent}})`
+}
+
+/**
+ * `with_swing shift, pulse, tick:, offset: do ... end`  (#356)
+ *
+ * Desktop `core.rb:382-404`: every `pulse`-th call runs the block through
+ * `time_warp(shift)`, the rest inline — a swing feel. Positional args are
+ * [shift, pulse, tick, offset]; keyword opts override. We fold both into one
+ * opts object and emit `__b.with_swing({ … }, fn)` → ProgramBuilder.with_swing.
+ */
+function transpileWithSwing(
+  argsNode: any, blockNode: any, ctx: TranspileContext
+): string {
+  if (!blockNode) {
+    const line = argsNode?.startPosition?.row != null ? argsNode.startPosition.row + 1 : '?'
+    ctx.errors.push(`Parse error at line ${line}: with_swing is missing 'do ... end' block`)
+    return `/* parse error: with_swing missing block */`
+  }
+  const args = argsNode?.namedChildren ?? []
+  const positional = args.filter((a: any) => a.type !== 'pair')
+  const pairs = args.filter((a: any) => a.type === 'pair')
+  const posKeys = ['shift', 'pulse', 'tick', 'offset']
+  const parts: string[] = []
+  positional.forEach((a: any, i: number) => {
+    if (posKeys[i]) parts.push(`${posKeys[i]}: ${transpileNode(a, ctx)}`)
+  })
+  for (const p of pairs) {
+    const key = p.namedChildren[0]?.text?.replace(/:$/, '')
+    if (key) parts.push(`${key}: ${transpileNode(p.namedChildren[1], ctx)}`)
+  }
+  const optsObj = `{ ${parts.join(', ')} }`
+  const prefix = ctx.insideLoop ? '__b.' : ''
+  const bodyCtx: TranspileContext = { ...ctx, insideLoop: true }
+  const bodyStr = transpileBlockBody(blockNode, bodyCtx)
+  return `${prefix}with_swing(${optsObj}, (__b) => {\n${bodyStr}\n${ctx.indent}})`
 }
 
 /**
