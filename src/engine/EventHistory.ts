@@ -34,6 +34,24 @@
  * history pruning (`@history_depth`, event_history.rb:163) are likewise deferred.
  */
 
+import { pathMatch, toWritePath, toReadPath } from './PathMatcher'
+
+/** Glob tokens that force a read to scan-and-merge across keys (GAP M1b). */
+const GLOB_TOKENS = /[*?{[]/
+
+/**
+ * Apply a value matcher safely — a port of `safe_matcher_call`
+ * (event_history.rb:19-26): a matcher that throws is treated as NON-matching
+ * (`false`), never propagating the error out of the lookup. GAP M2.
+ */
+function safeMatch(matcher: (value: unknown) => boolean, value: unknown): boolean {
+  try {
+    return matcher(value) === true
+  } catch {
+    return false
+  }
+}
+
 /** A coordination event: a value recorded at virtual time `t` by thread `idPath`. */
 export interface CueEvent {
   /** Virtual time (seconds) the event was recorded at. */
@@ -181,9 +199,27 @@ export class EventHistory {
    * `null` when nothing is at or before the reader's point.
    */
   getMostRecent(key: string | symbol, t: number, idPath: number[]): CueEvent | null {
+    const ge = { t, idPath }
+    // GAP M1b: a glob read scans every key whose stored path the pattern matches
+    // and returns the GREATEST `e <= ge` across all of them — desktop's `__get`
+    // min/max merge over matching tree nodes (event_history.rb:299-380), here
+    // over a flat key set. A glob-free key keeps the O(1) exact Map lookup.
+    if (typeof key === 'string' && GLOB_TOKENS.test(key)) {
+      let best: CueEvent | null = null
+      for (const [storedKey, events] of this.store) {
+        if (typeof storedKey !== 'string' || !pathMatch(key, storedKey)) continue
+        const cand = this.firstAtOrBefore(events, ge)
+        if (cand && (!best || compareEvent(cand, best) > 0)) best = cand
+      }
+      return best
+    }
     const events = this.store.get(key)
     if (!events || events.length === 0) return null
-    const ge = { t, idPath }
+    return this.firstAtOrBefore(events, ge)
+  }
+
+  /** First (greatest) event `<= ge` in a descending list, or null. */
+  private firstAtOrBefore(events: CueEvent[], ge: { t: number; idPath: number[] }): CueEvent | null {
     for (let i = 0; i < events.length; i++) {
       if (compareEvent(events[i], ge) <= 0) return events[i]
     }
@@ -209,12 +245,44 @@ export class EventHistory {
    * set on a RE-sync; a first sync passes `undefined` so the wake-phase is the
    * pure `(t,idPath)` `cueDelivers` rule (#400 unaffected).
    */
-  getNextDelivered(key: string | symbol, t: number, idPath: number[], after?: { t: number; idPath: number[] }): CueEvent | null {
+  getNextDelivered(key: string | symbol, t: number, idPath: number[], after?: { t: number; idPath: number[] }, valMatcher?: (value: unknown) => boolean): CueEvent | null {
+    // GAP M1b: a glob sync (`sync :foo` → `/{cue,set,live_loop}/foo`) wakes on the
+    // SMALLEST deliverable cue across EVERY matching key — desktop's `get_next`
+    // min merge (event_history.rb:303-360). A glob-free key keeps the fast scan.
+    // GAP M2: `valMatcher` (desktop's `arg_matcher`) further constrains a
+    // candidate by its value — the scan must keep looking past a value-rejected
+    // cue to the next deliverable one (event_history.rb:529-534).
+    if (typeof key === 'string' && GLOB_TOKENS.test(key)) {
+      let best: CueEvent | null = null
+      for (const [storedKey, events] of this.store) {
+        if (typeof storedKey !== 'string' || !pathMatch(key, storedKey)) continue
+        const cand = this.firstDeliverable(events, t, idPath, after, valMatcher)
+        if (cand && (!best || compareEvent(cand, best) < 0)) best = cand
+      }
+      return best
+    }
     const events = this.store.get(key)
     if (!events || events.length === 0) return null
+    return this.firstDeliverable(events, t, idPath, after, valMatcher)
+  }
+
+  /**
+   * Smallest deliverable cue in a descending list — scan from the tail
+   * (ascending t) and return the first that clears `after`, {@link cueDelivers},
+   * and (GAP M2) the optional `valMatcher` value predicate. A matcher that throws
+   * is treated as non-matching (desktop `safe_matcher_call`, event_history.rb:19-26).
+   */
+  private firstDeliverable(
+    events: CueEvent[],
+    t: number,
+    idPath: number[],
+    after?: { t: number; idPath: number[] },
+    valMatcher?: (value: unknown) => boolean,
+  ): CueEvent | null {
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i]
       if (after && compareEvent(e, after) <= 0) continue
+      if (valMatcher && !safeMatch(valMatcher, e.value)) continue
       if (cueDelivers(e.t, e.idPath, t, idPath)) return e
     }
     return null
@@ -244,5 +312,46 @@ export class EventHistory {
   /** Clear all events. Dispose-only (SK14) — never on stop/run. */
   clear(): void {
     this.store.clear()
+  }
+}
+
+/**
+ * TimeStateView — GAP M1c. Exposes the prior `TimeState` `{set, get}` interface
+ * but backed by a SHARED EventHistory with path namespacing, so `set`/`get` use
+ * the ONE coordination store that `cue`/`sync` use (desktop's single
+ * `@event_history`). The consequence — desktop-faithful — is that a `get :foo`
+ * now sees a `cue :foo` / `live_loop :foo` (the `/{cue,set,live_loop}/foo` read
+ * union), which the separate-store world could not do.
+ *
+ * Writes go to the `/set/` root (`toWritePath(key, 'set')`); reads use the union
+ * glob (`toReadPath`). The leading-`/` heuristic (PathMatcher) routes an explicit
+ * absolute key (`set "/a/b"`) to a verbatim path. Returns value-or-`null`,
+ * matching the prior TimeState vt-aware contract (SonicPiEngine `?? null`).
+ */
+export class TimeStateView {
+  constructor(private readonly eh: EventHistory) {}
+
+  set(key: string | symbol, value: unknown, t: number, writerIdPath: number[] = [0]): void {
+    this.eh.insert(toWritePath(String(key), 'set'), t, writerIdPath, value)
+  }
+
+  get(key: string | symbol, t?: number, readerIdPath: number[] = [0]): unknown {
+    const readPath = toReadPath(String(key))
+    // No-vt facade (the engine's `get(key)` fallback): the absolute latest across
+    // the union — a reader at +∞ with a maximal idPath sees every stored event.
+    const at = t === undefined ? Number.POSITIVE_INFINITY : t
+    const rid = t === undefined ? [Number.MAX_SAFE_INTEGER] : readerIdPath
+    const e = this.eh.getMostRecent(readPath, at, rid)
+    return e ? e.value : null
+  }
+
+  /** Distinct-key count facade (parity with the prior TimeState). */
+  get size(): number {
+    return this.eh.size
+  }
+
+  /** Dispose-only clear (SK14) — delegates to the shared store. */
+  clear(): void {
+    this.eh.clear()
   }
 }

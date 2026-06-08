@@ -877,10 +877,25 @@ function transpileNode(node: any, ctx: TranspileContext): string {
 
     // ---- Lambda ----
     case 'lambda': {
-      // ->(x) { x * 2 } → (x) => { return x * 2 }
+      // ->(x) { x * 2 } → (x) => (x * 2)   (Ruby's last expression is the return)
       const params = node.namedChildren.find((c: any) => c.type === 'lambda_parameters' || c.type === 'block_parameters')
       const body = node.namedChildren.find((c: any) => c.type === 'block' || c.type === 'do_block') ?? node.namedChildren[node.namedChildCount - 1]
       const paramStr = params ? params.namedChildren.map((c: any) => transpileNode(c, ctx)).join(', ') : ''
+      // A SINGLE-statement body becomes an expression-bodied arrow so the value
+      // is implicitly returned (Ruby semantics) — this is what makes a value
+      // predicate like `arg_matcher: ->(a){ a[0] == 9 }` (GAP M2) actually return
+      // its boolean instead of `undefined`. Multi-statement bodies keep the block
+      // form (no implicit return — a pre-existing limitation, rare for lambdas).
+      if (body && (body.type === 'block' || body.type === 'do_block')) {
+        const stmts = body.namedChildren.filter((c: any) => c.type !== 'block_parameters' && c.type !== 'comment')
+        // Only a single EXPRESSION statement can become an expression-bodied
+        // arrow. A statement node (return/break/next/control flow) would produce
+        // invalid JS like `() => (return 5)`, so keep the block form for those.
+        const STMT_NODES = new Set(['return', 'break', 'next', 'redo', 'retry', 'if', 'unless', 'while', 'until', 'case', 'for', 'begin'])
+        if (stmts.length === 1 && !STMT_NODES.has(stmts[0].type)) {
+          return `(${paramStr}) => (${transpileNode(stmts[0], ctx)})`
+        }
+      }
       const bodyStr = body ? transpileNode(body, ctx) : ''
       return `(${paramStr}) => { ${bodyStr} }`
     }
