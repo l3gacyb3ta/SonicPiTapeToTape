@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-06-09T22:20:26.756702+00:00",
+  "generatedAt": "2026-06-12T16:21:16.985843+00:00",
   "pool": "community",
   "scheme": "consistency-score",
   "schemeNote": "Tier-2/3 timbre+level (HIGH/MID/LOW/INCONCLUSIVE) \u2014 NOT Tier-1 pitch; blind to wrong melody per SV46.",
   "viewer": "community.html",
   "total": 48,
-  "captured": 46,
+  "captured": 43,
   "subPools": {
     "community": 28,
     "in-thread-forum": 20
   },
   "counts": {
     "HIGH": 12,
-    "MID": 18,
+    "MID": 16,
     "LOW": 9,
-    "INCONCLUSIVE": 9
+    "INCONCLUSIVE": 11
   },
   "entries": [
     {
@@ -22,180 +22,180 @@
       "parent": "community",
       "base": "01_tilburg_2",
       "verdict": "MID",
-      "score": 65.7402791656186,
+      "score": 65.24837907820836,
       "captured": true,
-      "rms_ratio": 0.510863804981452,
-      "peak_ratio": 0.53389655882959,
-      "mfcc_distance": 121.71992492675781,
-      "l2_mel_db": 11.414375305175781
+      "rms_ratio": 0.5015906680805939,
+      "peak_ratio": 0.5233848387431298,
+      "mfcc_distance": 119.18265533447266,
+      "l2_mel_db": 11.42634105682373
     },
     {
       "name": "community__02_shufflit",
       "parent": "community",
       "base": "02_shufflit",
       "verdict": "HIGH",
-      "score": 75.8377443766145,
+      "score": 76.58119100819813,
       "captured": true,
-      "rms_ratio": 0.9225,
-      "peak_ratio": 0.7296780684104627,
-      "mfcc_distance": 159.65512084960938,
-      "l2_mel_db": 18.373003005981445
+      "rms_ratio": 0.9716417910447761,
+      "peak_ratio": 0.6905,
+      "mfcc_distance": 158.48208618164062,
+      "l2_mel_db": 18.108335494995117
     },
     {
       "name": "community__03_blimp_zones",
       "parent": "community",
       "base": "03_blimp_zones",
       "verdict": "HIGH",
-      "score": 75.97366783962356,
+      "score": 78.69933159553331,
       "captured": true,
-      "rms_ratio": 1.1815126050420168,
-      "peak_ratio": 1.3692898272552783,
-      "mfcc_distance": 144.56536865234375,
-      "l2_mel_db": 16.31304931640625
+      "rms_ratio": 1.0875420875420876,
+      "peak_ratio": 1.2545105566218808,
+      "mfcc_distance": 145.2744903564453,
+      "l2_mel_db": 16.279067993164062
     },
     {
       "name": "community__04_blip_rhythm",
       "parent": "community",
       "base": "04_blip_rhythm",
       "verdict": "HIGH",
-      "score": 84.16703677039673,
+      "score": 84.08582974078074,
       "captured": true,
-      "rms_ratio": 1.0,
-      "peak_ratio": 0.6772,
-      "mfcc_distance": 105.80731964111328,
-      "l2_mel_db": 10.541668891906738
+      "rms_ratio": 1.0261920752182672,
+      "peak_ratio": 0.6727,
+      "mfcc_distance": 101.57549285888672,
+      "l2_mel_db": 9.976912498474121
     },
     {
       "name": "community__05_time_machine",
       "parent": "community",
       "base": "05_time_machine",
       "verdict": "MID",
-      "score": 61.08624421343329,
+      "score": 60.29034914009018,
       "captured": true,
-      "rms_ratio": 0.4813084112149533,
-      "peak_ratio": 0.4888,
-      "mfcc_distance": 143.38546752929688,
-      "l2_mel_db": 13.624761581420898
+      "rms_ratio": 0.47316219369894985,
+      "peak_ratio": 0.4781,
+      "mfcc_distance": 144.544677734375,
+      "l2_mel_db": 13.83983325958252
     },
     {
       "name": "community__06_bach",
       "parent": "community",
       "base": "06_bach",
-      "verdict": "MID",
-      "score": 60.52894467473102,
-      "captured": true,
-      "rms_ratio": 0.3837837837837838,
-      "peak_ratio": 0.5263157894736842,
-      "mfcc_distance": 108.64171600341797,
-      "l2_mel_db": 10.615764617919922
+      "verdict": "INCONCLUSIVE",
+      "score": null,
+      "captured": false,
+      "rms_ratio": null,
+      "peak_ratio": null,
+      "mfcc_distance": null,
+      "l2_mel_db": null
     },
     {
       "name": "community__07_driving_pulse",
       "parent": "community",
       "base": "07_driving_pulse",
-      "verdict": "MID",
-      "score": 66.88044384640821,
-      "captured": true,
-      "rms_ratio": 0.48537234042553185,
-      "peak_ratio": 0.5920447074293228,
-      "mfcc_distance": 102.2469482421875,
-      "l2_mel_db": 11.155001640319824
+      "verdict": "INCONCLUSIVE",
+      "score": null,
+      "captured": false,
+      "rms_ratio": 0.0,
+      "peak_ratio": 0.0,
+      "mfcc_distance": null,
+      "l2_mel_db": null
     },
     {
       "name": "community__08_monday_blues",
       "parent": "community",
       "base": "08_monday_blues",
       "verdict": "MID",
-      "score": 67.2476540510812,
+      "score": 68.44048611551543,
       "captured": true,
-      "rms_ratio": 0.4848484848484848,
-      "peak_ratio": 0.5014813351767727,
-      "mfcc_distance": 87.62289428710938,
-      "l2_mel_db": 8.72883129119873
+      "rms_ratio": 0.4889406286379511,
+      "peak_ratio": 0.5526367766146554,
+      "mfcc_distance": 87.22716522216797,
+      "l2_mel_db": 8.828582763671875
     },
     {
       "name": "community__09_acid",
       "parent": "community",
       "base": "09_acid",
       "verdict": "MID",
-      "score": 59.87525675991597,
+      "score": 60.20417346583454,
       "captured": true,
-      "rms_ratio": 0.47077713551701994,
-      "peak_ratio": 0.4892267418445429,
-      "mfcc_distance": 147.36314392089844,
-      "l2_mel_db": 14.529403686523438
+      "rms_ratio": 0.47111681643132225,
+      "peak_ratio": 0.4902,
+      "mfcc_distance": 144.45957946777344,
+      "l2_mel_db": 14.285027503967285
     },
     {
       "name": "community__10_idm_breakbeat",
       "parent": "community",
       "base": "10_idm_breakbeat",
       "verdict": "HIGH",
-      "score": 72.23112449610281,
+      "score": 70.93248655163563,
       "captured": true,
-      "rms_ratio": 0.544179523141655,
-      "peak_ratio": 0.8057989485422973,
-      "mfcc_distance": 110.39878845214844,
-      "l2_mel_db": 11.241572380065918
+      "rms_ratio": 0.4901960784313726,
+      "peak_ratio": 0.833386075949367,
+      "mfcc_distance": 105.55877685546875,
+      "l2_mel_db": 10.648273468017578
     },
     {
       "name": "community__11_ambient",
       "parent": "community",
       "base": "11_ambient",
       "verdict": "HIGH",
-      "score": 80.27724206255894,
+      "score": 83.57494005872294,
       "captured": true,
-      "rms_ratio": 0.9398496240601505,
-      "peak_ratio": 0.8483582089552238,
-      "mfcc_distance": 159.92764282226562,
-      "l2_mel_db": 14.340824127197266
+      "rms_ratio": 0.7142857142857143,
+      "peak_ratio": 0.913647342995169,
+      "mfcc_distance": 87.71324920654297,
+      "l2_mel_db": 6.301358222961426
     },
     {
       "name": "community__12_echo_drama",
       "parent": "community",
       "base": "12_echo_drama",
       "verdict": "MID",
-      "score": 59.78853229814017,
+      "score": 65.74335662685567,
       "captured": true,
-      "rms_ratio": 0.4566473988439307,
-      "peak_ratio": 0.46185567010309275,
-      "mfcc_distance": 127.56108856201172,
-      "l2_mel_db": 14.186759948730469
+      "rms_ratio": 0.4971098265895954,
+      "peak_ratio": 0.5041237113402062,
+      "mfcc_distance": 110.03385162353516,
+      "l2_mel_db": 10.36395263671875
     },
     {
       "name": "community__13_tron_bike",
       "parent": "community",
       "base": "13_tron_bike",
       "verdict": "MID",
-      "score": 50.232039540170845,
+      "score": 56.51249784754184,
       "captured": true,
-      "rms_ratio": 0.3571934798015592,
-      "peak_ratio": 0.5050998419767275,
-      "mfcc_distance": 192.9147491455078,
-      "l2_mel_db": 17.422819137573242
+      "rms_ratio": 0.45216158752657687,
+      "peak_ratio": 0.6680074701910644,
+      "mfcc_distance": 217.06167602539062,
+      "l2_mel_db": 18.48765754699707
     },
     {
       "name": "community__14_wob_rhyth",
       "parent": "community",
       "base": "14_wob_rhyth",
       "verdict": "MID",
-      "score": 66.76270959058502,
+      "score": 67.47882419587856,
       "captured": true,
-      "rms_ratio": 0.5454545454545455,
-      "peak_ratio": 0.5265039966344132,
-      "mfcc_distance": 124.26695251464844,
-      "l2_mel_db": 11.609631538391113
+      "rms_ratio": 0.5398601398601399,
+      "peak_ratio": 0.5403870424905344,
+      "mfcc_distance": 119.17277526855469,
+      "l2_mel_db": 10.93814754486084
     },
     {
       "name": "community__15_rerezzed",
       "parent": "community",
       "base": "15_rerezzed",
-      "verdict": "MID",
-      "score": 65.31800648748847,
-      "captured": true,
-      "rms_ratio": 0.48495145631067965,
-      "peak_ratio": 0.4952,
-      "mfcc_distance": 103.45805358886719,
-      "l2_mel_db": 10.405664443969727
+      "verdict": "INCONCLUSIVE",
+      "score": null,
+      "captured": false,
+      "rms_ratio": 0.0,
+      "peak_ratio": 0.0,
+      "mfcc_distance": null,
+      "l2_mel_db": null
     },
     {
       "name": "community__16_minimal_mixer",
@@ -203,11 +203,11 @@
       "base": "16_minimal_mixer",
       "verdict": "INCONCLUSIVE",
       "score": null,
-      "captured": true,
+      "captured": false,
       "rms_ratio": null,
       "peak_ratio": null,
-      "mfcc_distance": 358.3780822753906,
-      "l2_mel_db": 76.18749237060547
+      "mfcc_distance": null,
+      "l2_mel_db": null
     },
     {
       "name": "community__17_top_arp_bass",
@@ -218,32 +218,32 @@
       "captured": true,
       "rms_ratio": null,
       "peak_ratio": null,
-      "mfcc_distance": 511.1252136230469,
-      "l2_mel_db": 59.716758728027344
+      "mfcc_distance": 511.611572265625,
+      "l2_mel_db": 59.77793884277344
     },
     {
       "name": "community__18_piano_layers",
       "parent": "community",
       "base": "18_piano_layers",
       "verdict": "MID",
-      "score": 65.06637119780726,
+      "score": 53.627521470647935,
       "captured": true,
-      "rms_ratio": 0.4777448071216617,
-      "peak_ratio": 0.45547210300429186,
-      "mfcc_distance": 95.94308471679688,
-      "l2_mel_db": 9.403192520141602
+      "rms_ratio": 0.49693251533742333,
+      "peak_ratio": 0.16995028539863744,
+      "mfcc_distance": 159.024658203125,
+      "l2_mel_db": 13.813455581665039
     },
     {
       "name": "community__19_ambient_lead",
       "parent": "community",
       "base": "19_ambient_lead",
-      "verdict": "MID",
-      "score": 55.10229861865208,
+      "verdict": "HIGH",
+      "score": 70.5383688023747,
       "captured": true,
-      "rms_ratio": 0.5037037037037037,
-      "peak_ratio": 0.36830601092896176,
-      "mfcc_distance": 190.53793334960938,
-      "l2_mel_db": 16.20473289489746
+      "rms_ratio": 0.5407407407407407,
+      "peak_ratio": 0.5329608938547487,
+      "mfcc_distance": 82.89307403564453,
+      "l2_mel_db": 8.671456336975098
     },
     {
       "name": "community__20_noise_drums_saw",
@@ -254,32 +254,32 @@
       "captured": true,
       "rms_ratio": null,
       "peak_ratio": null,
-      "mfcc_distance": 476.30889892578125,
-      "l2_mel_db": 58.18119812011719
+      "mfcc_distance": 477.893798828125,
+      "l2_mel_db": 59.445003509521484
     },
     {
       "name": "community__21_electronic_experiment",
       "parent": "community",
       "base": "21_electronic_experiment",
       "verdict": "LOW",
-      "score": 48.4824344045914,
+      "score": 49.06489914076649,
       "captured": true,
-      "rms_ratio": 0.4813052345343304,
-      "peak_ratio": 0.39544386556338745,
-      "mfcc_distance": 236.81260681152344,
-      "l2_mel_db": 23.023136138916016
+      "rms_ratio": 0.4765465669612508,
+      "peak_ratio": 0.4224989265779305,
+      "mfcc_distance": 235.1275634765625,
+      "l2_mel_db": 23.027843475341797
     },
     {
       "name": "community__22_recursive_sprout",
       "parent": "community",
       "base": "22_recursive_sprout",
       "verdict": "HIGH",
-      "score": 75.3620103769933,
+      "score": 75.31128253275502,
       "captured": true,
       "rms_ratio": 0.8,
       "peak_ratio": 0.5916030534351144,
-      "mfcc_distance": 129.76797485351562,
-      "l2_mel_db": 12.734883308410645
+      "mfcc_distance": 130.38665771484375,
+      "l2_mel_db": 12.76787281036377
     },
     {
       "name": "community__23_bass_distortion",
@@ -290,8 +290,8 @@
       "captured": true,
       "rms_ratio": null,
       "peak_ratio": null,
-      "mfcc_distance": 604.4509887695312,
-      "l2_mel_db": 63.48641586303711
+      "mfcc_distance": 608.1769409179688,
+      "l2_mel_db": 63.30195236206055
     },
     {
       "name": "community__24_bhairav_tabla",
@@ -310,24 +310,24 @@
       "parent": "community",
       "base": "25_piano_exercise",
       "verdict": "MID",
-      "score": 67.52143675206112,
+      "score": 67.51718510889748,
       "captured": true,
-      "rms_ratio": 0.4808935920047031,
-      "peak_ratio": 0.4558901215002642,
-      "mfcc_distance": 82.73344421386719,
-      "l2_mel_db": 6.665700912475586
+      "rms_ratio": 0.48456610366919045,
+      "peak_ratio": 0.45459090151641396,
+      "mfcc_distance": 84.89823913574219,
+      "l2_mel_db": 6.715315341949463
     },
     {
       "name": "community__26_note_duration_pairs",
       "parent": "community",
       "base": "26_note_duration_pairs",
-      "verdict": "HIGH",
-      "score": 79.475088010285,
+      "verdict": "LOW",
+      "score": 48.583240846071575,
       "captured": true,
-      "rms_ratio": 0.7966101694915254,
-      "peak_ratio": 1.772938689217759,
-      "mfcc_distance": 88.26071166992188,
-      "l2_mel_db": 8.324989318847656
+      "rms_ratio": 0.3006396588486141,
+      "peak_ratio": 0.4193,
+      "mfcc_distance": 226.67869567871094,
+      "l2_mel_db": 7.783072471618652
     },
     {
       "name": "community__27_hydra_jam",
@@ -338,8 +338,8 @@
       "captured": true,
       "rms_ratio": null,
       "peak_ratio": null,
-      "mfcc_distance": 735.5557250976562,
-      "l2_mel_db": 60.28681182861328
+      "mfcc_distance": 729.1632690429688,
+      "l2_mel_db": 60.23992919921875
     },
     {
       "name": "community__28_snowflight_inspired",
@@ -350,8 +350,8 @@
       "captured": true,
       "rms_ratio": null,
       "peak_ratio": null,
-      "mfcc_distance": 568.0524291992188,
-      "l2_mel_db": 55.962188720703125
+      "mfcc_distance": 568.0430908203125,
+      "l2_mel_db": 55.92616653442383
     },
     {
       "name": "in-thread-forum__29_sacramento_storm",
@@ -370,228 +370,228 @@
       "parent": "in-thread-forum",
       "base": "30_atmospheric_drone",
       "verdict": "MID",
-      "score": 65.22324420803734,
+      "score": 66.27830046490331,
       "captured": true,
-      "rms_ratio": 0.48250000000000004,
-      "peak_ratio": 0.4413746630727763,
-      "mfcc_distance": 94.33760070800781,
-      "l2_mel_db": 9.065760612487793
+      "rms_ratio": 0.4849246231155779,
+      "peak_ratio": 0.48035581912527797,
+      "mfcc_distance": 93.96572875976562,
+      "l2_mel_db": 9.045357704162598
     },
     {
       "name": "in-thread-forum__31_bass_noise_jam",
       "parent": "in-thread-forum",
       "base": "31_bass_noise_jam",
       "verdict": "LOW",
-      "score": 30.825476455688474,
+      "score": 29.87564010620117,
       "captured": true,
-      "rms_ratio": 0.056980056980056974,
-      "peak_ratio": 0.1292,
-      "mfcc_distance": 297.5821838378906,
-      "l2_mel_db": 15.49235725402832
+      "rms_ratio": 0.057332910991447585,
+      "peak_ratio": 0.1071,
+      "mfcc_distance": 309.8974609375,
+      "l2_mel_db": 16.049144744873047
     },
     {
       "name": "in-thread-forum__32_morning_vibe",
       "parent": "in-thread-forum",
       "base": "32_morning_vibe",
       "verdict": "LOW",
-      "score": 46.17779268386559,
+      "score": 45.52783615925118,
       "captured": true,
-      "rms_ratio": 0.3809099018733274,
-      "peak_ratio": 0.41650345998172084,
-      "mfcc_distance": 217.4385528564453,
-      "l2_mel_db": 20.97684669494629
+      "rms_ratio": 0.37967914438502676,
+      "peak_ratio": 0.3954230973922299,
+      "mfcc_distance": 217.5780487060547,
+      "l2_mel_db": 20.995115280151367
     },
     {
       "name": "in-thread-forum__33_dub_reverb",
       "parent": "in-thread-forum",
       "base": "33_dub_reverb",
       "verdict": "LOW",
-      "score": 23.268052101135254,
+      "score": 25.408062362670893,
       "captured": true,
-      "rms_ratio": 0.009345794392523366,
-      "peak_ratio": 0.0041,
-      "mfcc_distance": 476.58294677734375,
-      "l2_mel_db": 13.171334266662598
+      "rms_ratio": 0.010989010989010988,
+      "peak_ratio": 0.0074,
+      "mfcc_distance": 439.2421569824219,
+      "l2_mel_db": 12.71638298034668
     },
     {
       "name": "in-thread-forum__34_kx5_escape_cover",
       "parent": "in-thread-forum",
       "base": "34_kx5_escape_cover",
       "verdict": "LOW",
-      "score": 34.68894958496094,
+      "score": 34.90330219268799,
       "captured": true,
-      "rms_ratio": 0.0828125,
-      "peak_ratio": 0.1583,
-      "mfcc_distance": 253.0208282470703,
-      "l2_mel_db": 12.766681671142578
+      "rms_ratio": 0.08199921905505662,
+      "peak_ratio": 0.1502,
+      "mfcc_distance": 251.9065704345703,
+      "l2_mel_db": 12.50228214263916
     },
     {
       "name": "in-thread-forum__35_evolving_arp",
       "parent": "in-thread-forum",
       "base": "35_evolving_arp",
       "verdict": "LOW",
-      "score": 33.39694805145264,
+      "score": 34.05973129272461,
       "captured": true,
-      "rms_ratio": 0.05652826413206603,
-      "peak_ratio": 0.0778,
-      "mfcc_distance": 289.7666320800781,
-      "l2_mel_db": 11.857867240905762
+      "rms_ratio": 0.05755755755755756,
+      "peak_ratio": 0.0759,
+      "mfcc_distance": 281.731201171875,
+      "l2_mel_db": 11.422847747802734
     },
     {
       "name": "in-thread-forum__36_fun_with_functions",
       "parent": "in-thread-forum",
       "base": "36_fun_with_functions",
       "verdict": "MID",
-      "score": 55.27711744439391,
+      "score": 55.57773429861409,
       "captured": true,
-      "rms_ratio": 0.43829787234042555,
-      "peak_ratio": 0.4523730501161633,
-      "mfcc_distance": 157.64822387695312,
-      "l2_mel_db": 17.345186233520508
+      "rms_ratio": 0.44255319148936173,
+      "peak_ratio": 0.45559322033898303,
+      "mfcc_distance": 157.3501434326172,
+      "l2_mel_db": 17.345394134521484
     },
     {
       "name": "in-thread-forum__37_semitone_array",
       "parent": "in-thread-forum",
       "base": "37_semitone_array",
       "verdict": "MID",
-      "score": 66.64214724097603,
+      "score": 66.63974798713082,
       "captured": true,
       "rms_ratio": 0.449438202247191,
       "peak_ratio": 0.6153418565869928,
-      "mfcc_distance": 99.77297973632812,
-      "l2_mel_db": 9.680123329162598
+      "mfcc_distance": 99.74830627441406,
+      "l2_mel_db": 9.686178207397461
     },
     {
       "name": "in-thread-forum__38_synthwave",
       "parent": "in-thread-forum",
       "base": "38_synthwave",
       "verdict": "HIGH",
-      "score": 80.88728262388406,
+      "score": 82.40837323242096,
       "captured": true,
-      "rms_ratio": 0.9455984174085065,
-      "peak_ratio": 0.9134512325830654,
-      "mfcc_distance": 140.93191528320312,
-      "l2_mel_db": 16.460186004638672
+      "rms_ratio": 1.0236686390532543,
+      "peak_ratio": 0.9562483275354563,
+      "mfcc_distance": 138.4358673095703,
+      "l2_mel_db": 16.132551193237305
     },
     {
       "name": "in-thread-forum__39_blues_machine",
       "parent": "in-thread-forum",
       "base": "39_blues_machine",
       "verdict": "HIGH",
-      "score": 77.42990104847412,
+      "score": 77.32978826340877,
       "captured": true,
-      "rms_ratio": 1.1858921161825726,
-      "peak_ratio": 0.709,
-      "mfcc_distance": 131.65460205078125,
-      "l2_mel_db": 14.294514656066895
+      "rms_ratio": 1.1796937953263498,
+      "peak_ratio": 0.6983,
+      "mfcc_distance": 131.00132751464844,
+      "l2_mel_db": 14.430583953857422
     },
     {
       "name": "in-thread-forum__40_choose_generator",
       "parent": "in-thread-forum",
       "base": "40_choose_generator",
       "verdict": "MID",
-      "score": 50.399679671233585,
+      "score": 51.766240283685065,
       "captured": true,
-      "rms_ratio": 0.3891081294396211,
-      "peak_ratio": 0.42207554088742205,
-      "mfcc_distance": 186.01339721679688,
-      "l2_mel_db": 17.566823959350586
+      "rms_ratio": 0.4111111111111111,
+      "peak_ratio": 0.4688302163549688,
+      "mfcc_distance": 194.09194946289062,
+      "l2_mel_db": 18.494495391845703
     },
     {
       "name": "in-thread-forum__41_ocean_ambience",
       "parent": "in-thread-forum",
       "base": "41_ocean_ambience",
-      "verdict": "INCONCLUSIVE",
-      "score": null,
-      "captured": false,
-      "rms_ratio": null,
-      "peak_ratio": null,
-      "mfcc_distance": null,
-      "l2_mel_db": null
+      "verdict": "MID",
+      "score": 67.71143433365603,
+      "captured": true,
+      "rms_ratio": 1.675233644859813,
+      "peak_ratio": 2.094252873563218,
+      "mfcc_distance": 104.842041015625,
+      "l2_mel_db": 13.137935638427734
     },
     {
       "name": "in-thread-forum__42_first_music",
       "parent": "in-thread-forum",
       "base": "42_first_music",
       "verdict": "MID",
-      "score": 72.71755963420902,
+      "score": 73.14663183825164,
       "captured": true,
-      "rms_ratio": 1.0607142857142857,
-      "peak_ratio": 0.7062649777473468,
-      "mfcc_distance": 184.413330078125,
-      "l2_mel_db": 21.7055721282959
+      "rms_ratio": 1.0571428571428572,
+      "peak_ratio": 0.7309431524547804,
+      "mfcc_distance": 184.57400512695312,
+      "l2_mel_db": 21.718076705932617
     },
     {
       "name": "in-thread-forum__43_exploring_tb303",
       "parent": "in-thread-forum",
       "base": "43_exploring_tb303",
       "verdict": "LOW",
-      "score": 33.36147136688233,
+      "score": 33.273247146606444,
       "captured": true,
-      "rms_ratio": 0.05899608865710561,
-      "peak_ratio": 0.1514,
-      "mfcc_distance": 276.900634765625,
-      "l2_mel_db": 12.989161491394043
+      "rms_ratio": 0.05704041720990874,
+      "peak_ratio": 0.1739,
+      "mfcc_distance": 281.579345703125,
+      "l2_mel_db": 12.746309280395508
     },
     {
       "name": "in-thread-forum__44_blues_band",
       "parent": "in-thread-forum",
       "base": "44_blues_band",
       "verdict": "LOW",
-      "score": 39.033635916750555,
+      "score": 39.02286550049079,
       "captured": true,
-      "rms_ratio": 0.19372491791317037,
+      "rms_ratio": 0.19370194068106922,
       "peak_ratio": 0.3787,
-      "mfcc_distance": 210.8850555419922,
-      "l2_mel_db": 16.525943756103516
+      "mfcc_distance": 211.69322204589844,
+      "l2_mel_db": 16.476547241210938
     },
     {
       "name": "in-thread-forum__45_sick_drummer",
       "parent": "in-thread-forum",
       "base": "45_sick_drummer",
-      "verdict": "LOW",
-      "score": 1.2205810546875,
+      "verdict": "MID",
+      "score": 61.949398632751304,
       "captured": true,
-      "rms_ratio": 0.0,
-      "peak_ratio": 0.0,
-      "mfcc_distance": 1042.6019287109375,
-      "l2_mel_db": 47.9656982421875
+      "rms_ratio": 0.763496143958869,
+      "peak_ratio": 0.6639,
+      "mfcc_distance": 274.9899597167969,
+      "l2_mel_db": 23.382131576538086
     },
     {
       "name": "in-thread-forum__46_lofi_hip_hop",
       "parent": "in-thread-forum",
       "base": "46_lofi_hip_hop",
       "verdict": "HIGH",
-      "score": 73.42723035952972,
+      "score": 73.68874225361193,
       "captured": true,
-      "rms_ratio": 1.5057251908396945,
-      "peak_ratio": 1.235489644592176,
-      "mfcc_distance": 122.6846694946289,
-      "l2_mel_db": 15.489228248596191
+      "rms_ratio": 1.4971428571428573,
+      "peak_ratio": 1.2123147675012773,
+      "mfcc_distance": 123.91278839111328,
+      "l2_mel_db": 15.498679161071777
     },
     {
       "name": "in-thread-forum__47_fibonacci_zoomies",
       "parent": "in-thread-forum",
       "base": "47_fibonacci_zoomies",
       "verdict": "HIGH",
-      "score": 78.76019982833753,
+      "score": 79.12805413612647,
       "captured": true,
-      "rms_ratio": 1.0175438596491226,
-      "peak_ratio": 1.703052250387998,
-      "mfcc_distance": 120.32539367675781,
-      "l2_mel_db": 15.143742561340332
+      "rms_ratio": 1.123003194888179,
+      "peak_ratio": 1.6458278838608424,
+      "mfcc_distance": 105.2336654663086,
+      "l2_mel_db": 12.847885131835938
     },
     {
       "name": "in-thread-forum__48_lullaby",
       "parent": "in-thread-forum",
       "base": "48_lullaby",
       "verdict": "HIGH",
-      "score": 77.99105022442752,
+      "score": 77.47336954161534,
       "captured": true,
       "rms_ratio": 0.9428571428571428,
-      "peak_ratio": 1.3295819935691318,
-      "mfcc_distance": 166.35305786132812,
-      "l2_mel_db": 15.559446334838867
+      "peak_ratio": 1.3979591836734693,
+      "mfcc_distance": 166.76515197753906,
+      "l2_mel_db": 15.483537673950195
     }
   ]
 }

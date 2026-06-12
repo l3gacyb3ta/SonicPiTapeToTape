@@ -50,9 +50,9 @@
 <nav class="tab-bar" id="topnav" data-meta="desktop ↔ web parity · launch-gate evidence"></nav>
 <script src="nav.js"></script>
 <header>
-  <h1>Launch-Gate Detail — the 7 gradeable official rows</h1>
-  <p>These are the gate-report denominator: every bundled official example that is <strong>PRNG-free and non-heavy</strong> (27 PRNG-driven rows are excluded — cross-engine random parity is a deliberate non-goal, SV49). On these deterministic rows the engine is held to exact desktop parity.</p>
-  <div class="hero">Launch gate: 7/7 = 100% &middot; all EVENT-MATCH / MATCH</div>
+  <h1>Launch-Gate Detail — the deterministic core rows</h1>
+  <p>These are the PRNG-free, non-heavy official rows — the instrument-blind ones graded via projection plus the deterministic raw-sweep rows. On them the engine is held to exact desktop parity. <strong>Post-EPIC-#531 the gate denominator also includes the PRNG-driven rows</strong>, now graded by <code>/s_new</code> event-parity (the random walk matches desktop note-for-note, SV69 — the SV49 non-goal is retired); see the <a href="launch-gate.html">launch-gate page</a> for the full roster and the live pass percentage.</p>
+  <div class="hero">Deterministic core &middot; all EVENT-MATCH / MATCH</div>
   
   <div class="links">
     <a href="index.html">← aggregate index</a>
@@ -1251,43 +1251,142 @@ end
 end
 </code></pre></details>
     <details open class="spectro"><summary>🎛️ A/B spectrogram</summary><img loading="lazy" src="gate-detail/bach/spectrogram.png" alt="bach spectrogram"></details>
-    <details open class="report"><summary>📊 Full comparison report (6 tiers)</summary><div class="md"><h1>Desktop ↔ Web Comparison: comm-community__06_bach</h1>
+    <details open class="report"><summary>📊 Full comparison report (6 tiers)</summary><div class="md"><h1>Desktop ↔ Web Comparison: bach</h1>
 <ul>
-<li><strong>Timestamp:</strong> 2026-06-09T20:56:12.158Z</li>
-<li><strong>Capture window:</strong> 30000 ms</li>
+<li><strong>Timestamp:</strong> 2026-06-12T14:53:32.628Z</li>
+<li><strong>Capture window:</strong> 100000 ms</li>
 </ul>
 <h2>Code</h2>
-<pre><code class="language-ruby">use_bpm 60
+<pre><code class="language-ruby"># Bach Minuet in G
+#
+# Coded by Robin Newman
+
+use_bpm 60
 use_synth_defaults release: 0.5, amp: 0.7, cutoff: 90
 use_synth :beep
 
-in_thread do
-  play_chord [55,59]
-  sleep 1
-  play_pattern_timed [57],[0.5]
-  play_pattern_timed [59],[1.5]
-  play_pattern_timed [60],[1.5]
-  play_pattern_timed [59],[1.5]
-  play_pattern_timed [57],[1.5]
-  play_pattern_timed [55],[1.5]
-  play_pattern_timed [62,59,55],[0.5]
-  play_pattern_timed [62],[0.5]
-  play_pattern_timed [50,60,59,57],[0.25]
+## Each section of the minuet is repeated
+2.times do
+
+  ## First start a thread for the first 8 bars of the bass left hand part
+  in_thread do
+    play_chord [55,59]#b1
+    sleep 1
+    play_pattern_timed [57],[0.5]
+    play_pattern_timed [59],[1.5] #b2
+    play_pattern_timed [60],[1.5] #b3
+    play_pattern_timed [59],[1.5] #b4
+    play_pattern_timed [57],[1.5] #b5
+    play_pattern_timed [55],[1.5] #b6
+    play_pattern_timed [62,59,55],[0.5] #b7
+    play_pattern_timed [62],[0.5] #b8
+    play_pattern_timed [50,60,59,57],[0.25]
+  end
+
+  ## Play concurrently the first 8 bars of the right hand part
+  play_pattern_timed [74],[0.5]#b1
+  play_pattern_timed [67,69,71,72],[0.25]
+  play_pattern_timed [74,67,67],[0.5]#b2
+  play_pattern_timed [76],[0.5]#b3
+  play_pattern_timed [72,74,76,78],[0.25]
+  play_pattern_timed [79,67,67],[0.5]#b4
+  play_pattern_timed [72],[0.5] #b5
+  play_pattern_timed [74,72,71,69],[0.25]
+  play_pattern_timed [71],[0.5] #b6
+  play_pattern_timed [72,71,69,67],[0.25]
+  play_pattern_timed [66],[0.5] #b7
+  play_pattern_timed [67,69,71,67],[0.25]
+  play_pattern_timed [71,69],[0.5,1] #b8
+
+  ## Start a new thread for bars 9-16 of the left hand part
+  in_thread do
+    play_chord [55,59]#b9=b1
+    sleep 1
+    play 57
+    sleep 0.5
+    play_pattern_timed [55,59,55],[0.5] #b10
+    play_pattern_timed [60],[1.5] #b11=b3
+    play_pattern_timed [59,60,59,57,5],[0.5,0.25,0.25,0.25,0.25] #b12=b4]
+    play_pattern_timed [57,54],[1,0.5] #b13
+    play_pattern_timed [55,59],[1,0.5] #b14
+    play_pattern_timed [60,62,50],[0.5] #b15
+    play_pattern_timed [55,43],[1,0.5] #b16
+  end
+
+  ## Play concurrently bars 9-16 of the right hand part the first six
+  ## bars repeat bars 1-6
+  play_pattern_timed [74],[0.5]#b9 = b1
+  play_pattern_timed [67,69,71,72],[0.25]
+  play_pattern_timed [74,67,67],[0.5]#b10=b2
+  play_pattern_timed [76],[0.5]#b11=b3
+  play_pattern_timed [72,74,76,78],[0.25]
+  play_pattern_timed [79,67,67],[0.5]#b12=b4
+  play_pattern_timed [72],[0.5] #b13=b5
+  play_pattern_timed [74,72,71,69],[0.25]
+  play_pattern_timed [71],[0.5] #b14=b6
+  play_pattern_timed [72,71,69,67],[0.25]
+  play_pattern_timed [69],[0.5] #b15
+  play_pattern_timed [71,69,67,66],[0.25]
+  play_pattern_timed [67],[1.5] #b16
 end
 
-play_pattern_timed [74],[0.5]
-play_pattern_timed [67,69,71,72],[0.25]
-play_pattern_timed [74,67,67],[0.5]
-play_pattern_timed [76],[0.5]
-play_pattern_timed [72,74,76,78],[0.25]
-play_pattern_timed [79,67,67],[0.5]
-play_pattern_timed [72],[0.5]
-play_pattern_timed [74,72,71,69],[0.25]
-play_pattern_timed [71],[0.5]
-play_pattern_timed [72,71,69,67],[0.25]
-play_pattern_timed [66],[0.5]
-play_pattern_timed [67,69,71,67],[0.25]
-play_pattern_timed [71,69],[0.5,1]
+
+## ==========second section starts here======
+## The second section is also repeated
+2.times do
+
+  ## Start a thread for bars 17-24 of the left hand part
+  in_thread do
+    play_pattern_timed [55],[1.5] #b17
+    play_pattern_timed [54],[1.5] #b18
+    play_pattern_timed [52,54,52],[0.5] #b19
+    play_pattern_timed [57,45],[1,0.5] #b20
+    play_pattern_timed [57],[1.5] #b21
+    play_pattern_timed [59,62,61],[0.5] #b22
+    play_pattern_timed [62,54,57],[0.5] #b23
+    play_pattern_timed [62,50,60],[0.5] #b24
+  end
+
+  ## Play bars 17 to 24 of the right hand concurrently with the left
+  ## hand thread
+  play_pattern_timed [83],[0.5] #b17
+  play_pattern_timed [79,81,83,79],[0.25]
+  play_pattern_timed [81],[0.5] #b18
+  play_pattern_timed [74,76,78,74],[0.25]
+  play_pattern_timed [79],[0.5] #b19
+  play_pattern_timed [76,78,79,74],[0.25]
+  play_pattern_timed [73,71,73,69],[0.5,0.25,0.25,0.5] #b20
+  play_pattern_timed [69,71,73,74,76,78],[0.25] #b21
+  play_pattern_timed [79,78,76],[0.5] #b22
+  play_pattern_timed [78,69,73],[0.5] #b23
+  play 74 #b24
+  sleep 1.5
+
+  ## Start a new thread for bars 25-32 of the left hand part
+  in_thread do
+    play_pattern_timed [59,62,59],[0.5] #b25
+    play_pattern_timed [60,64,60],[0.5] #b26
+    play_pattern_timed [59,57,55],[0.5] #b27
+    play 62 #b28
+    sleep 1.5 #includes a rest
+    play_pattern_timed [50,54],[1,0.5] #b29
+    play_pattern_timed [52,55,54],[0.5] #b30
+    play_pattern_timed [55,47,50],[0.5] #b31
+    play_pattern_timed [55,50,43],[0.5] #b32
+  end
+
+  ## Play bars 25-32 of the right hand part concurrently with the left
+  ## hand thread
+  play_pattern_timed [74,67,66,67],[0.5,0.25,0.25,0.5] #b25
+  play_pattern_timed [76,67,66,67],[0.5,0.25,0.25,0.5] #b26
+  play_pattern_timed [74,72,71],[0.5] #b27
+  play_pattern_timed [69,67,66,67,69],[0.25,0.25,0.25,0.25,0.5] #b28
+  play_pattern_timed [62,64,66,67,69,71],[0.25] #b29
+  play_pattern_timed [72,71,69],[0.5] #b30
+  play_pattern_timed [71,74,67,66],[0.25,0.25,0.5,0.5] #b31
+  play_chord [67,59] #b32
+  sleep 1.5
+end
 </code></pre>
 <h2>Stats (Level 3 — observation, not inference)</h2>
 <table>
@@ -1301,21 +1400,21 @@ play_pattern_timed [71,69],[0.5,1]
 </thead>
 <tbody><tr>
 <td>Duration (s)</td>
-<td>31.369</td>
-<td>29.696</td>
-<td>1.673</td>
+<td>101.395</td>
+<td>99.755</td>
+<td>1.640</td>
 </tr>
 <tr>
 <td>Peak</td>
-<td>0.3952</td>
-<td>0.2080</td>
-<td>0.1872</td>
+<td>0.3954</td>
+<td>0.2438</td>
+<td>0.1516</td>
 </tr>
 <tr>
 <td>RMS</td>
-<td>0.0740</td>
-<td>0.0284</td>
-<td>0.0456</td>
+<td>0.1077</td>
+<td>0.0443</td>
+<td>0.0634</td>
 </tr>
 <tr>
 <td>Clipping (%)</td>
@@ -1337,30 +1436,30 @@ play_pattern_timed [71,69],[0.5,1]
 </tr>
 </tbody></table>
 <h2>Verdict</h2>
-<h3>✅ EVENT-MATCH — per-synthdef <code>/s_new</code> onset-sequence parity STRUCTURE-MATCHES desktop (SV61): the engine emitted the right notes at the right times. The audio Tier-1 said <em>&quot;PITCH DIVERGENCE at note 0 (desktop 69 vs web 74)&quot;</em>, but that measures stage-7+ scsynth DSP (WASM-vs-native rendering / pitch-tracker noise), not the engine. Authoritative cross-engine check passes.  · ⚠ Tier-0 SOFT: level/count aggregates unreliable (Tier 1 pitch unaffected)</h3>
+<h3>✅ EVENT-MATCH — per-synthdef <code>/s_new</code> onset-sequence + note parity STRUCTURE-MATCHES desktop (SV61/SV69): the engine emitted the right notes at the right times. The audio Tier-1 said <em>&quot;PITCH DIVERGENCE at note 2 (desktop 60 vs web 67)&quot;</em>, but that measures stage-7+ scsynth DSP (WASM-vs-native rendering / pitch-tracker noise), not the engine. Authoritative cross-engine check passes.  · ⚠ Tier-0 SOFT: level/count aggregates unreliable (Tier 1 pitch unaffected)</h3>
 <h3>Tier 0 — Validity gates</h3>
 <ul>
 <li>✓ 0.1 Sample rate consistent (48000 Hz)</li>
-<li>⚠ 0.2 Capture-window misaligned (Δ 1.67s &gt; 0.5s) — note-count / level aggregates unreliable  <strong>(SOFT — Tier 3 + 1.3 unreliable; Tier 1 pitch still valid)</strong></li>
+<li>⚠ 0.2 Capture-window misaligned (Δ 1.64s &gt; 0.5s) — note-count / level aggregates unreliable  <strong>(SOFT — Tier 3 + 1.3 unreliable; Tier 1 pitch still valid)</strong></li>
 <li>◦ 0.3 equal preconditions / 0.4 lossless capture / 0.5 routing sanity — not auto-checked; ensure SP.app reset + raw-float32 + FX-bus wired (SV31/SV27/SV30)</li>
 </ul>
 <h3>Tier 1 — Musical correctness (THE verdict — energy/MFCC may never override)</h3>
 <ul>
-<li><strong>1.1 Note progression:</strong> ✗ PITCH DIVERGENCE at note 0 (desktop 69 vs web 74)<ul>
+<li><strong>1.1 Note progression:</strong> ✗ PITCH DIVERGENCE at note 2 (desktop 60 vs web 67)<ul>
 <li>method: desktop <code>onset</code> (conf 1) · web <code>onset</code> (conf 1)</li>
-<li>desktop: <code>69,60,57,71,69</code></li>
-<li>web&nbsp;&nbsp;&nbsp;: <code>74,67,67,67,76,72,67,67,57,74,72,67,69</code></li>
+<li>desktop: <code>74,67,60,57,59,69,67,67,67,60,60,57,71,74,67,60,57,67,69,67,67,67,60,60</code></li>
+<li>web&nbsp;&nbsp;&nbsp;: <code>74,67,67,67,76,72,67,67,57,74,72,67,69,67,67,67,76,72,67,57,74,72,71,43</code></li>
 </ul>
 </li>
-<li><strong>1.2 Tempo (inter-onset):</strong> ✗ desktop 3.000s · web 0.500s/note</li>
-<li><strong>1.3 Onset count:</strong> desktop 5 · web 13 (Δ explained by Tier-0 window misalignment)</li>
+<li><strong>1.2 Tempo (inter-onset):</strong> ✓ desktop 0.500s · web 0.500s/note</li>
+<li><strong>1.3 Onset count:</strong> desktop 80 · web 108 (Δ explained by Tier-0 window misalignment)</li>
 <li>◦ 1.4 note duration / 1.5 polyphony / 1.6 determinism — not auto-tracked here (unit tests cover determinism; see SV24/SV45)</li>
 </ul>
 <h3>Tier 1.0 — Event parity (<code>/s_new</code> onset-sequence vs desktop — SV61 authoritative tiebreaker)</h3>
 <ul>
-<li><strong>Structure (synthdef multiset):</strong> STRUCTURE-MATCH — desktop 49 voice <code>/s_new</code>, web 49</li>
+<li><strong>Structure (synthdef multiset):</strong> STRUCTURE-MATCH — desktop 406 voice <code>/s_new</code>, web 406</li>
 <li><strong>Onset sequence (ε=15ms, prefix-compared, + per-tick NOTE multiset):</strong> ✓ MATCH<ul>
-<li>✓ <code>beep</code> — 49 onsets within ε (max Δ 0ms), notes match</li>
+<li>✓ <code>beep</code> — 406 onsets within ε (max Δ 0ms), notes match</li>
 </ul>
 </li>
 <li>✅ <strong>EVENT-MATCH:</strong> structure + onset sequences both match — the engine&#39;s deterministic output (stages 1-6, terminating at the OSC emission) is correct. The audio Tier-1 divergence is stage-7+ scsynth rendering or tracker noise, not an engine bug (SV61; #453/#379/#378 class).</li>
@@ -1370,8 +1469,8 @@ play_pattern_timed [71,69],[0.5,1]
 <p>⚠ Tier-0 SOFT failed — these ratios span misaligned windows; treat as indicative only.</p>
 </blockquote>
 <ul>
-<li>3.1 RMS ratio web/desktop = 0.38× (outside band — tracked separately, not a Tier-1 fail)</li>
-<li>3.2 Peak ratio web/desktop = 0.53×</li>
+<li>3.1 RMS ratio web/desktop = 0.41× (outside band — tracked separately, not a Tier-1 fail)</li>
+<li>3.2 Peak ratio web/desktop = 0.62×</li>
 <li>3.3 Clipping: desktop 0% · web 0% ✓ (&lt; 1%)</li>
 </ul>
 <h3>Tier 2 — Spectral / timbral (supporting only) · Tier 4 — FX/routing · Tier 5 — lifecycle</h3>
@@ -1397,12 +1496,12 @@ play_pattern_timed [71,69],[0.5,1]
 </thead>
 <tbody><tr>
 <td>L2 distance (mel-dB)</td>
-<td>10.62</td>
+<td>14.91</td>
 <td>&lt; 10 = very close · 10–25 = similar shape · &gt; 25 = divergent</td>
 </tr>
 <tr>
 <td>MFCC distance (timbre)</td>
-<td>108.64</td>
+<td>137.44</td>
 <td>&lt; 30 = similar · 30–80 = noticeably different · &gt; 80 = unrelated</td>
 </tr>
 <tr>
@@ -1412,12 +1511,12 @@ play_pattern_timed [71,69],[0.5,1]
 </tr>
 <tr>
 <td>Frames compared</td>
-<td>2785</td>
+<td>9353</td>
 <td>overlapping window after length-aligning</td>
 </tr>
 <tr>
 <td>Peak freq desktop</td>
-<td>247.0 Hz</td>
+<td>196.0 Hz</td>
 <td>dominant frequency</td>
 </tr>
 <tr>
@@ -1426,21 +1525,21 @@ play_pattern_timed [71,69],[0.5,1]
 <td>dominant frequency</td>
 </tr>
 <tr>
-<td>⚠ MFCC distance 108.64 is high — <strong>check Tier 1 first</strong>: if pitch-track matched, this is timbre/gain (the known 0.5× + reverb tail), NOT wrong notes. Only treat as &quot;different synth/sample chain&quot; when Tier 1 also diverges.</td>
+<td>⚠ MFCC distance 137.44 is high — <strong>check Tier 1 first</strong>: if pitch-track matched, this is timbre/gain (the known 0.5× + reverb tail), NOT wrong notes. Only treat as &quot;different synth/sample chain&quot; when Tier 1 also diverges.</td>
 <td></td>
 <td></td>
 </tr>
 </tbody></table>
 <h2>Tool stdout (debug)</h2>
 <h3>Desktop</h3>
-<pre><code>▶ Desktop capture (30000ms): comm-community__06_bach
-✓ Report: /Users/mrityunjaybhardwaj/Documents/projects/sonicPiWeb/.captures/desktop_2026-06-09T20-54-56-611Z_comm-community__06_bach.md
+<pre><code>▶ Desktop capture (100000ms): bach
+✓ Report: /Users/mrityunjaybhardwaj/Documents/projects/sonicPiWeb/.captures/desktop_2026-06-12T14-49-55-650Z_bach.md
 ✓ WAV:    gate-detail/bach/desktop.wav
-  31.37s · peak 0.3952 · RMS 0.074 · clip 0%
+  101.39s · peak 0.3954 · RMS 0.1077 · clip 0%
 </code></pre>
 <h3>Web</h3>
 <pre><code>Launching Chromium (headed, audio capture)...
-  Running: inline (30000ms)...
+  Running: inline (100000ms)...
 
 Capture saved: /Users/mrityunjaybhardwaj/Documents/projects/sonicPiWeb/.captures/inline.md
 No errors detected.
@@ -1482,7 +1581,7 @@ end
     <details open class="spectro"><summary>🎛️ A/B spectrogram</summary><img loading="lazy" src="gate-detail/dark_neon/spectrogram.png" alt="dark_neon spectrogram"></details>
     <details open class="report"><summary>📊 Full comparison report (6 tiers)</summary><div class="md"><h1>Desktop ↔ Web Comparison: dark_neon</h1>
 <ul>
-<li><strong>Timestamp:</strong> 2026-06-09T20:19:05.348Z</li>
+<li><strong>Timestamp:</strong> 2026-06-12T14:41:28.472Z</li>
 <li><strong>Capture window:</strong> 15000 ms</li>
 </ul>
 <h2>Code</h2>
@@ -1524,14 +1623,14 @@ end
 <tr>
 <td>Peak</td>
 <td>1.0000</td>
-<td>0.7985</td>
-<td>0.2015</td>
+<td>0.8695</td>
+<td>0.1305</td>
 </tr>
 <tr>
 <td>RMS</td>
 <td>0.5077</td>
-<td>0.2392</td>
-<td>0.2685</td>
+<td>0.2382</td>
+<td>0.2695</td>
 </tr>
 <tr>
 <td>Clipping (%)</td>
@@ -1553,7 +1652,7 @@ end
 </tr>
 </tbody></table>
 <h2>Verdict</h2>
-<h3>✅ EVENT-MATCH — per-synthdef <code>/s_new</code> onset-sequence parity STRUCTURE-MATCHES desktop (SV61): the engine emitted the right notes at the right times. The audio Tier-1 said <em>&quot;PITCH DIVERGENCE at pc 1 (desktop 11 vs web 1)&quot;</em>, but that measures stage-7+ scsynth DSP (WASM-vs-native rendering / pitch-tracker noise), not the engine. Authoritative cross-engine check passes.  · ⚠ Tier-0 SOFT: level/count aggregates unreliable (Tier 1 pitch unaffected)</h3>
+<h3>✅ EVENT-MATCH — per-synthdef <code>/s_new</code> onset-sequence + note parity STRUCTURE-MATCHES desktop (SV61/SV69): the engine emitted the right notes at the right times. The audio Tier-1 said <em>&quot;PITCH DIVERGENCE at pc 2 (desktop 11 vs web 0)&quot;</em>, but that measures stage-7+ scsynth DSP (WASM-vs-native rendering / pitch-tracker noise), not the engine. Authoritative cross-engine check passes.  · ⚠ Tier-0 SOFT: level/count aggregates unreliable (Tier 1 pitch unaffected)</h3>
 <h3>Tier 0 — Validity gates</h3>
 <ul>
 <li>✓ 0.1 Sample rate consistent (48000 Hz)</li>
@@ -1562,13 +1661,13 @@ end
 </ul>
 <h3>Tier 1 — Musical correctness (THE verdict — energy/MFCC may never override)</h3>
 <ul>
-<li><strong>1.1 Note progression:</strong> ✗ PITCH DIVERGENCE at pc 1 (desktop 11 vs web 1)<ul>
-<li>method: desktop <code>contour</code> (conf 0.98) · web <code>contour</code> (conf 0.98) · compared octave-invariant</li>
+<li><strong>1.1 Note progression:</strong> ✗ PITCH DIVERGENCE at pc 2 (desktop 11 vs web 0)<ul>
+<li>method: desktop <code>contour</code> (conf 0.98) · web <code>contour</code> (conf 0.97) · compared octave-invariant</li>
 <li>desktop: <code>11,11,11,0,11,11,0,11,11,0,11</code></li>
-<li>web&nbsp;&nbsp;&nbsp;: <code>11,1,11,11,0,11,11,0,11,11,11</code></li>
+<li>web&nbsp;&nbsp;&nbsp;: <code>11,11,0,11,0,11,11,11,11,11,0</code></li>
 </ul>
 </li>
-<li><strong>1.2 Tempo (inter-onset):</strong> ✗ desktop 0.295s · web 0.885s/note</li>
+<li><strong>1.2 Tempo (inter-onset):</strong> ✗ desktop 0.295s · web 0.625s/note</li>
 <li><strong>1.3 Onset count:</strong> desktop 11 · web 11 (Δ explained by Tier-0 window misalignment)</li>
 <li>◦ 1.4 note duration / 1.5 polyphony / 1.6 determinism — not auto-tracked here (unit tests cover determinism; see SV24/SV45)</li>
 </ul>
@@ -1576,7 +1675,7 @@ end
 <ul>
 <li><strong>Structure (synthdef multiset):</strong> STRUCTURE-MATCH — desktop 43 voice <code>/s_new</code>, web 40</li>
 <li><strong>Onset sequence (ε=15ms, prefix-compared, + per-tick NOTE multiset):</strong> ✓ MATCH<ul>
-<li>✓ <code>basic_stereo_player</code> — 32 onsets within ε (max Δ 1ms), notes match</li>
+<li>✓ <code>basic_stereo_player</code> — 32 onsets within ε (max Δ 0ms), notes match</li>
 <li>✓ <code>blade</code> — 4 onsets within ε (max Δ 0ms), notes match</li>
 <li>✓ <code>stereo_player</code> — 4 onsets within ε (max Δ 0ms), notes match</li>
 </ul>
@@ -1589,7 +1688,7 @@ end
 </blockquote>
 <ul>
 <li>3.1 RMS ratio web/desktop = 0.47× (outside band — tracked separately, not a Tier-1 fail)</li>
-<li>3.2 Peak ratio web/desktop = 0.80×</li>
+<li>3.2 Peak ratio web/desktop = 0.87×</li>
 <li>3.3 Clipping: desktop 7.56% · web 0% ⚠</li>
 </ul>
 <h3>Tier 2 — Spectral / timbral (supporting only) · Tier 4 — FX/routing · Tier 5 — lifecycle</h3>
@@ -1615,12 +1714,12 @@ end
 </thead>
 <tbody><tr>
 <td>L2 distance (mel-dB)</td>
-<td>10.53</td>
+<td>10.54</td>
 <td>&lt; 10 = very close · 10–25 = similar shape · &gt; 25 = divergent</td>
 </tr>
 <tr>
 <td>MFCC distance (timbre)</td>
-<td>149.20</td>
+<td>149.93</td>
 <td>&lt; 30 = similar · 30–80 = noticeably different · &gt; 80 = unrelated</td>
 </tr>
 <tr>
@@ -1644,7 +1743,7 @@ end
 <td>dominant frequency</td>
 </tr>
 <tr>
-<td>⚠ MFCC distance 149.20 is high — <strong>check Tier 1 first</strong>: if pitch-track matched, this is timbre/gain (the known 0.5× + reverb tail), NOT wrong notes. Only treat as &quot;different synth/sample chain&quot; when Tier 1 also diverges.</td>
+<td>⚠ MFCC distance 149.93 is high — <strong>check Tier 1 first</strong>: if pitch-track matched, this is timbre/gain (the known 0.5× + reverb tail), NOT wrong notes. Only treat as &quot;different synth/sample chain&quot; when Tier 1 also diverges.</td>
 <td></td>
 <td></td>
 </tr>
@@ -1652,7 +1751,7 @@ end
 <h2>Tool stdout (debug)</h2>
 <h3>Desktop</h3>
 <pre><code>▶ Desktop capture (15000ms): dark_neon
-✓ Report: /Users/mrityunjaybhardwaj/Documents/projects/sonicPiWeb/.captures/desktop_2026-06-09T20-18-20-267Z_dark_neon.md
+✓ Report: /Users/mrityunjaybhardwaj/Documents/projects/sonicPiWeb/.captures/desktop_2026-06-12T14-40-43-805Z_dark_neon.md
 ✓ WAV:    gate-detail/dark_neon/desktop.wav
   16.37s · peak 1 · RMS 0.5077 · clip 7.56%
 </code></pre>
