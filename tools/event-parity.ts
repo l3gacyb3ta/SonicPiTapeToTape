@@ -7,11 +7,15 @@
  * the audio comparator is opaque past desktop's audio and can only verify the
  * dominant harmonic content; this reads the literal per-layer event stream.
  *
- * PRNG param VALUES are EXPECTED to differ (SV49: desktop reads a frozen
- * rand-stream table, we use MT19937). We therefore diff STRUCTURE (synthdef
- * multiset + order + timing), NOT random values — separating "engine plays the
- * right composition" from "different random walk", at the event level, with no
- * audio inference.
+ * PRNG param VALUES now MATCH desktop note-for-note (EPIC #531: the engine ships
+ * desktop's frozen rand-stream.wav table and replicates its index arithmetic +
+ * stream-derived thread seeding — Phase 5a, #536). So we diff STRUCTURE (synthdef
+ * multiset + order + timing) AND per-tick NOTE values for PRNG pieces too —
+ * "engine plays the right composition AND the right random walk", at the event
+ * level, with no audio inference. (SV49's "values expected to differ" non-goal is
+ * RETIRED — superseded by SV69. Genuinely non-deterministic residue, e.g. a
+ * scsynth-internal-RNG synth, falls back to the cos-histogram heuristic in
+ * compare-desktop-vs-web.ts.)
  *
  * Usage:
  *   npx tsx tools/event-parity.ts --file path/to/code.rb --duration 12000
@@ -126,10 +130,10 @@ export interface OnsetSeqRow {
   timingMatched: boolean // onset TIMES match within ε over the prefix
   firstMismatchIdx: number // -1 when timing matched (or nothing to compare)
   maxDevMs: number // largest |Δ| over the compared prefix, in ms
-  // NOTE-value parity per timetag (deterministic pieces only — SV49: PRNG VALUES
-  // are expected to differ, so notes are NOT checked when isPrng). null = not
-  // checked (PRNG, or nothing to compare). false = same synthdef fires at the
-  // same times but with DIFFERENT notes (a real transposition/wrong-note bug).
+  // NOTE-value parity per timetag. Checked for ALL pieces post-EPIC-#531 (PRNG
+  // VALUES now match desktop — Phase 5a/#536). null = nothing to compare. false =
+  // same synthdef fires at the same times but with DIFFERENT notes (a real
+  // transposition/wrong-note bug, or — for PRNG — a divergent random walk).
   noteMatched: boolean | null
   // matched = timingMatched AND (noteMatched !== false). The promotion gate.
   matched: boolean
@@ -140,7 +144,7 @@ export interface SequenceParity {
   // a tiebreaker must NOT promote on null (conservative — SV50 discipline).
   match: boolean | null
   epsilonMs: number
-  notesChecked: boolean // false for PRNG pieces (SV49 — values expected to differ)
+  notesChecked: boolean // true post-EPIC-#531 (PRNG values now match desktop, SV69)
   rows: OnsetSeqRow[]
   reasons: string[]
 }
@@ -282,9 +286,9 @@ function noteBucketsByTime(evs: VoiceEvent[]): string[] {
  *  1. TIMING — PREFIX-compare the sorted onset times. PREFIX because web captures
  *     ~1 fewer cycle (cold-start warmup trims the fixed window, SP22/SV15); ε
  *     (ONSET_EPS_SEC) absorbs desktop's ~2ms real-time jitter.
- *  2. NOTES — per-timetag note MULTISET equality (deterministic pieces only —
- *     SV49: PRNG note VALUES are expected to differ). This closes the hole that
- *     timing+structure alone leaves: a real transposition bug (same synthdef at
+ *  2. NOTES — per-timetag note MULTISET equality (ALL pieces, PRNG included —
+ *     post-EPIC-#531 PRNG note VALUES match desktop; SV69). This closes the hole
+ *     that timing+structure alone leaves: a real transposition bug (same synthdef at
  *     the same times, WRONG notes) would otherwise be falsely EVENT-MATCHed.
  *     Compared as multisets-per-tick because simultaneous onsets (octave stacks)
  *     have arbitrary intra-tick order on each engine — only the set is musical.
@@ -455,9 +459,12 @@ export function buildReport(desktop: OscEvent[], web: OscEvent[], code: string):
     )
 
   // Onset-sequence parity (SV61) — orthogonal to the multiset verdict above.
-  // Notes are checked only on deterministic pieces (SV49: PRNG note VALUES differ
-  // by construction; for PRNG we verify timing/structure, not note values).
-  const sequenceParity = computeSequenceParity(desktop, web, rows, !isPrng)
+  // Notes are checked for ALL pieces, PRNG included: post-EPIC-#531 (Phase 5a,
+  // #536) our random walk matches desktop's frozen rand-stream note-for-note, so
+  // per-tick NOTE parity is a REAL grader for PRNG pieces — the SV49 "values
+  // differ by construction" non-goal is retired (SV69). A PRNG piece whose notes
+  // diverge is now a real divergence, not an expected variance.
+  const sequenceParity = computeSequenceParity(desktop, web, rows, true)
 
   return {
     verdict,
@@ -540,7 +547,7 @@ function printReport(name: string, r: ParityReport): void {
   else if (r.verdict === 'STRUCTURE-MATCH' && sp.match === false)
     console.log(`  → NOT event-match: layers match but onset sequence (timing or notes) diverges — real engine bug.`)
 
-  console.log(`\nNote: PRNG param VALUES are not diffed (SV49 non-goal). Structure + timing only.`)
+  console.log(`\nNote: structure + onset timing + per-tick NOTE values are all diffed (PRNG included — values now match desktop, SV69).`)
   console.log(`A fixed wall-clock window counts more events on the faster-progressing engine;`)
   console.log(`"DROPPED" = a significant desktop layer web never produces (the robust divergence).`)
   console.log(bar + '\n')

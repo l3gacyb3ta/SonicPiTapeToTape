@@ -532,15 +532,25 @@ function writeComparisonReport(r: ComparisonResult): void {
   // PRNG-only, #428 projections, #377 multiLoopPhaseDrift) with ONE
   // method-independent boundary check.
   //
-  // It only PROMOTES a ✗/⚠ audio verdict (never demotes a ✓/≈), and only when
-  // BOTH structure AND onset sequences match — so a real mis-timed/dropped layer
-  // (sequenceParity.match=false / STRUCTURE-DIVERGE) is NEVER promoted (SV50).
-  let eventMatchPromoted = false
+  // It supersedes BOTH the audio Tier-1 verdict AND the cos-histogram PRNG-VARIANT
+  // fallback (≈) — for PRNG pieces too, since EPIC #531 made our random walk match
+  // desktop note-for-note (SV69). It never demotes a clean audio ✓ PITCH-MATCH
+  // (that branch is decided first below — SV50). It is DECISIVE in two directions:
+  //   • STRUCTURE-MATCH + onset-sequence/notes match → EVENT-MATCH (a pass).
+  //   • STRUCTURE-DIVERGE or sequence/notes diverge   → EVENT-DIVERGE (a real bug).
+  // STRUCTURE-MATCH with no judgeable shared layer (sp.match===null) is NOT
+  // decisive — it falls through to the cos PRNG-VARIANT fallback / audio verdict.
+  // The ladder below checks eventMatchPromoted/eventDiverge BEFORE the cos
+  // PRNG-VARIANT (≈) branch, so a decisive event-parity verdict always supersedes
+  // the fallback; ≈ is reached only when neither fired (event-parity not decisive).
+  let eventMatchPromoted = false   // event-parity confirms a PASS
+  let eventDiverge = false         // event-parity confirms a REAL divergence
   const ep = r.eventParity
-  const audioWasNonMatch = pitchVerdict.startsWith('✗') || pitchVerdict.startsWith('⚠')
-  if (ep && !ep.error && audioWasNonMatch && !invalid && !webEngineError && webNoWavClass === null) {
+  if (ep && !ep.error && !invalid && !webEngineError && webNoWavClass === null) {
     const epr = ep.report
-    if (epr.verdict === 'STRUCTURE-MATCH' && epr.sequenceParity.match === true) eventMatchPromoted = true
+    const sp = epr.sequenceParity
+    if (epr.verdict === 'STRUCTURE-MATCH' && sp.match === true) eventMatchPromoted = true
+    else if (epr.verdict === 'STRUCTURE-DIVERGE' || sp.match === false) eventDiverge = true
   }
 
   // Headline verdict
@@ -565,16 +575,33 @@ function writeComparisonReport(r: ComparisonResult): void {
   } else if (invalid) {
     lines.push(`### ❌ INVALID — Tier 0 HARD gate failed. The pitch sequence itself is unreliable; no verdict until fixed.`)
   } else if (pitchVerdict.startsWith('✓')) {
+    // Clean audio match — highest musical confidence; never demoted (SV50).
     lines.push(`### ✅ Tier 1 ${pitchVerdict}  (the musical-correctness verdict)${softNote}`)
-  } else if (pitchVerdict.startsWith('≈')) {
-    lines.push(`### ≈ Tier 1 PRNG-VARIANT — musically equivalent (same composition, different random walk). ${pitchVerdict.slice(2)}${softNote}`)
   } else if (eventMatchPromoted) {
-    // SV61 (#377/#378): the audio Tier-1 said DIVERGE/INCONCL, but per-synthdef
-    // /s_new onset-sequence parity STRUCTURE-MATCHES — the engine emitted the
-    // right notes at the right times. The audio divergence is stage-7 rendering
-    // or tracker noise, not an engine bug.
-    const audioSaid = pitchVerdict.replace(/^[✗⚠]\s*/, '')
-    lines.push(`### ✅ EVENT-MATCH — per-synthdef \`/s_new\` onset-sequence parity STRUCTURE-MATCHES desktop (SV61): the engine emitted the right notes at the right times. The audio Tier-1 said _"${audioSaid}"_, but that measures stage-7+ scsynth DSP (WASM-vs-native rendering / pitch-tracker noise), not the engine. Authoritative cross-engine check passes.${softNote}`)
+    // SV61/SV69 (#377/#378, EPIC #531): the audio Tier-1 said DIVERGE/INCONCL (or
+    // the cos heuristic said ≈), but per-synthdef /s_new onset-sequence + per-tick
+    // NOTE parity STRUCTURE-MATCHES — the engine emitted the right notes at the
+    // right times (for PRNG too: our random walk now matches desktop). The audio
+    // divergence is stage-7 rendering or tracker noise, not an engine bug. This
+    // supersedes the cos PRNG-VARIANT fallback.
+    const audioSaid = pitchVerdict.replace(/^[✗⚠≈]\s*/, '')
+    lines.push(`### ✅ EVENT-MATCH — per-synthdef \`/s_new\` onset-sequence + note parity STRUCTURE-MATCHES desktop (SV61/SV69): the engine emitted the right notes at the right times. The audio Tier-1 said _"${audioSaid}"_, but that measures stage-7+ scsynth DSP (WASM-vs-native rendering / pitch-tracker noise), not the engine. Authoritative cross-engine check passes.${softNote}`)
+  } else if (eventDiverge) {
+    // SV61/SV69: event-parity confirms a REAL divergence — a significant layer
+    // dropped, or a shared layer's onset sequence / per-tick notes diverge. For a
+    // PRNG piece this is now a real engine bug (the random walk diverges from
+    // desktop), no longer an SV49 "expected variance". This supersedes the cos
+    // PRNG-VARIANT fallback (which would otherwise mask it as musically equivalent).
+    const epr = ep!.report
+    const why = epr.verdict !== 'STRUCTURE-MATCH'
+      ? (epr.reasons[0] ?? epr.verdict)
+      : (epr.sequenceParity.reasons.find(x => /mis-timed|NOTE multiset|wrong notes/.test(x)) ?? 'onset-sequence diverges')
+    lines.push(`### ❌ EVENT-DIVERGE — per-synthdef \`/s_new\` onset-sequence/notes diverge from desktop (SV61/SV69): ${why}. Real engine divergence (the audio verdict stands; the cos heuristic does not apply).`)
+  } else if (pitchVerdict.startsWith('≈')) {
+    // cos-histogram PRNG-VARIANT — FALLBACK ONLY (event-parity could not judge:
+    // no shared significant layer, acquisition failed, or genuinely
+    // non-deterministic scsynth-internal-RNG residue; SV69).
+    lines.push(`### ≈ Tier 1 PRNG-VARIANT — musically equivalent (same composition, different random walk; event-parity could not judge — fallback). ${pitchVerdict.slice(2)}${softNote}`)
   } else if (pitchVerdict.startsWith('✗')) {
     lines.push(`### ❌ Tier 1 ${pitchVerdict}  (musical correctness FAILED — Tier 2/3 cannot override this)`)
   } else {
@@ -605,7 +632,7 @@ function writeComparisonReport(r: ComparisonResult): void {
       const sp = epr.sequenceParity
       const spWord = sp.match === null ? 'N/A (no judgeable shared layer)' : sp.match ? '✓ MATCH' : '✗ DIVERGE'
       lines.push(`- **Structure (synthdef multiset):** ${epr.verdict} — desktop ${epr.desktopTotal} voice \`/s_new\`, web ${epr.webTotal}`)
-      lines.push(`- **Onset sequence (ε=${sp.epsilonMs}ms, prefix-compared${sp.notesChecked ? ', + per-tick NOTE multiset' : ', timing-only — PRNG, SV49'}):** ${spWord}`)
+      lines.push(`- **Onset sequence (ε=${sp.epsilonMs}ms, prefix-compared${sp.notesChecked ? ', + per-tick NOTE multiset' : ', timing-only'}):** ${spWord}`)
       for (const row of sp.rows) {
         const ic = row.comparedLen === 0 ? '◦' : row.matched ? '✓' : '✗'
         const detail = row.comparedLen === 0
@@ -898,20 +925,25 @@ async function main(): Promise<void> {
     reconciledPitch = { desktop: dRec, web: wRec }
   }
 
-  // ── Event-parity tiebreaker acquisition (SV61, #377/#378) ──────────────────
-  // On a DETERMINISTIC piece whose audio Tier-1 verdict is NOT a clean match,
-  // acquire the authoritative per-synthdef /s_new onset-sequence parity (a
-  // separate, lightweight event capture — no audio). Gated tightly so the cost
-  // (one extra desktop+web run) is paid ONLY on the rows that need a tiebreaker:
-  //   • deterministic only — PRNG rows are an SV49 non-goal (excluded), and a
-  //     different random walk legitimately changes the event stream too.
+  // ── Event-parity acquisition (SV61/SV69, #377/#378, EPIC #531) ─────────────
+  // On any piece whose audio Tier-1 verdict is NOT a clean match, acquire the
+  // authoritative per-synthdef /s_new onset-sequence + per-tick NOTE parity (a
+  // separate, lightweight event capture — no audio). Gated so the cost (one extra
+  // desktop+web run) is paid ONLY on the rows that need it:
+  //   • PRNG INCLUDED — post-EPIC-#531 (Phase 5a, #536) our random walk matches
+  //     desktop's frozen rand-stream note-for-note, so event-parity is now the
+  //     GRADER for PRNG pieces too (it was an SV49 non-goal; that is retired —
+  //     SV69). The cos-histogram heuristic below is now a FALLBACK, used only
+  //     when event-parity cannot judge (no shared significant layer / acquisition
+  //     failed / genuinely non-deterministic scsynth-internal-RNG residue).
   //   • both WAVs present — an INVALID/missing-WAV row is not a DIVERGE/INCONCL
   //     the event layer can rescue.
   //   • audio NOT a clean match — a clean PITCH-MATCH needs no tiebreaker.
-  // Over-triggering is SAFE: the tiebreaker only PROMOTES a STRUCTURE+sequence
-  // match; if it doesn't match, the original audio verdict stands (SV50).
+  // Event-parity both PROMOTES (STRUCTURE+sequence match → EVENT-MATCH) and
+  // CONFIRMS divergence (sequence diverges → EVENT-DIVERGE); it never demotes a
+  // clean audio ✓ (SV50 — that branch is decided first).
   const PRNG_RE = /(\b(?:rrand|rrand_i|rand|rand_i|one_in|dice|use_random_seed)\b|\.(?:choose|shuffle|pick)\b|\b(?:choose|shuffle|pick)\s*\()/
-  const isDeterministic = !PRNG_RE.test(args.code)
+  const isPrngSource = PRNG_RE.test(args.code)
   const audioNotCleanMatch = (): boolean => {
     if (!desktopPitch || !webPitch) return false // verdict is INVALID, not DIVERGE/INCONCL
     if (desktopPitch.inconclusive || webPitch.inconclusive) return true
@@ -925,8 +957,8 @@ async function main(): Promise<void> {
     return false
   }
   let eventParity: EventParityInfo | null = null
-  if (isDeterministic && desktopStats && webStats && audioNotCleanMatch()) {
-    console.log(`  Audio Tier-1 non-match on a deterministic source — acquiring /s_new event-parity tiebreaker (SV61)...`)
+  if (desktopStats && webStats && audioNotCleanMatch()) {
+    console.log(`  Audio Tier-1 non-match${isPrngSource ? ' on a PRNG source' : ''} — acquiring /s_new event-parity (SV61/SV69)...`)
     try {
       const [dEv, wEv] = await Promise.all([
         captureDesktopEvents(args.code, { duration: args.duration }),

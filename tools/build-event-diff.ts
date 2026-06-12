@@ -40,6 +40,22 @@ interface SynthRow {
   desktopOnset: number | null
   webOnset: number | null
 }
+interface SeqRow {
+  synthdef: string
+  comparedLen: number
+  timingMatched: boolean
+  noteMatched: boolean | null
+  matched: boolean
+  maxDevMs: number
+  firstMismatchIdx: number
+}
+interface SequenceParity {
+  match: boolean | null // null = no judgeable shared layer; true/false = onset+note parity
+  epsilonMs: number
+  notesChecked: boolean
+  rows: SeqRow[]
+  reasons: string[]
+}
 interface ParityReport {
   verdict: 'STRUCTURE-MATCH' | 'STRUCTURE-DIVERGE' | 'DESKTOP-EMPTY' | 'WEB-EMPTY'
   isPrng: boolean
@@ -52,7 +68,27 @@ interface ParityReport {
   orderMatch: boolean
   desktopOrder: string[]
   webOrder: string[]
+  // SV61/SV69 — per-synthdef onset-sequence + per-tick NOTE parity. Optional: old
+  // captures predate it. When present, a STRUCTURE-MATCH whose sequenceParity.match
+  // is false is really a divergence (the random walk / timing diverges).
+  sequenceParity?: SequenceParity
 }
+
+/** Effective verdict (SV61/SV69): structure alone is not the grader — a piece can
+ *  STRUCTURE-MATCH the layers yet diverge on onset timing or per-tick notes (the
+ *  #537 PRNG-divergence class). Fold the onset-sequence verdict in so the dashboard
+ *  counts what event-parity actually decided. Old captures (no sequenceParity) keep
+ *  their structure verdict. */
+type EffVerdict = 'EVENT-MATCH' | 'STRUCTURE-DIVERGE' | 'SEQUENCE-DIVERGE' | 'DESKTOP-EMPTY' | 'WEB-EMPTY'
+function effectiveVerdict(r: ParityReport): EffVerdict {
+  if (r.verdict === 'DESKTOP-EMPTY' || r.verdict === 'WEB-EMPTY') return r.verdict
+  if (r.verdict === 'STRUCTURE-DIVERGE') return 'STRUCTURE-DIVERGE'
+  // STRUCTURE-MATCH: defer to onset-sequence/notes when judged.
+  if (r.sequenceParity && r.sequenceParity.match === false) return 'SEQUENCE-DIVERGE'
+  return 'EVENT-MATCH'
+}
+const isMatchEff = (v: EffVerdict) => v === 'EVENT-MATCH'
+const isDivergeEff = (v: EffVerdict) => v === 'STRUCTURE-DIVERGE' || v === 'SEQUENCE-DIVERGE'
 interface OscEvent {
   addr: string
   synthdef?: string
@@ -90,9 +126,9 @@ function loadCaptures(): Capture[] {
     }
   }
   // stable display order: diverge first, then empty, then match; alpha within.
-  const rank = (v: string) =>
-    v === 'STRUCTURE-DIVERGE' ? 0 : v.includes('EMPTY') ? 1 : 2
-  out.sort((a, b) => rank(a.report.verdict) - rank(b.report.verdict) || a.name.localeCompare(b.name))
+  const rank = (v: EffVerdict) =>
+    isDivergeEff(v) ? 0 : v.includes('EMPTY') ? 1 : 2
+  out.sort((a, b) => rank(effectiveVerdict(a.report)) - rank(effectiveVerdict(b.report)) || a.name.localeCompare(b.name))
   return out
 }
 
@@ -108,10 +144,9 @@ function fmtStamp(ts: string): string {
 }
 
 // ── HTML fragments ───────────────────────────────────────────────────────────
-function verdictBadge(v: string): string {
-  const cls =
-    v === 'STRUCTURE-MATCH' ? 'pass' : v.includes('EMPTY') ? 'incon' : 'fail'
-  const icon = v === 'STRUCTURE-MATCH' ? '✓' : v.includes('EMPTY') ? '⚠' : '✗'
+function verdictBadge(v: EffVerdict): string {
+  const cls = isMatchEff(v) ? 'pass' : v.includes('EMPTY') ? 'incon' : 'fail'
+  const icon = isMatchEff(v) ? '✓' : v.includes('EMPTY') ? '⚠' : '✗'
   return `<span class="verdict ${cls}">${icon} ${esc(v)}</span>`
 }
 
@@ -159,20 +194,27 @@ function streamRows(evs: OscEvent[]): string {
 
 function fixtureCard(c: Capture): string {
   const r = c.report
+  const eff = effectiveVerdict(r)
   const reasons = r.reasons.map((x) => `<li>${esc(x)}</li>`).join('')
   const voiceRows = r.rows.map(rowCells).join('')
   const fxRows = r.fxRows.length
     ? `<div class="tbl-h">FX</div><table class="diff"><thead><tr><th>synthdef</th><th>desktop</th><th>web</th><th>ratio</th><th>d@onset</th><th>w@onset</th><th>status</th></tr></thead><tbody>${r.fxRows.map(rowCells).join('')}</tbody></table>`
     : ''
   const stamp = fmtStamp(c.ts)
+  // SV61/SV69 onset-sequence + per-tick NOTE parity line (when judged).
+  const sp = r.sequenceParity
+  const seqLine = sp && sp.match !== null
+    ? `<div class="totals">Onset-sequence + note parity (SV61/SV69, ε=${sp.epsilonMs}ms): <b style="color:${sp.match ? 'var(--pass)' : 'var(--fail)'}">${sp.match ? '✓ MATCH' : '✗ DIVERGE'}</b>${sp.match === false ? ` — ${esc(sp.reasons.find(x => /mis-timed|NOTE multiset|wrong notes/.test(x)) ?? sp.reasons[0] ?? 'onset/notes diverge')}` : ''}</div>`
+    : ''
   return `<section class="fx-card" id="${esc(c.name)}">
   <div class="fx-head">
-    <div class="fx-title">${esc(c.name)} ${verdictBadge(r.verdict)}</div>
-    <div class="fx-meta">${r.isPrng ? '<span class="tag prng">PRNG · SV49</span>' : '<span class="tag det">deterministic</span>'}
+    <div class="fx-title">${esc(c.name)} ${verdictBadge(eff)}</div>
+    <div class="fx-meta">${r.isPrng ? '<span class="tag prng">PRNG · event-parity graded (SV69)</span>' : '<span class="tag det">deterministic</span>'}
       <span class="tag">window ${c.duration / 1000}s</span>
       <span class="stamp">${esc(stamp)}</span></div>
   </div>
   <ul class="reasons">${reasons}</ul>
+  ${seqLine}
   <div class="totals">Voice /s_new — desktop <b>${r.desktopTotal}</b>, web <b>${r.webTotal}</b>${r.totalRatio !== null ? ` · web <b>${r.totalRatio}×</b> desktop` : ''}</div>
   <table class="diff"><thead><tr><th>synthdef</th><th>desktop</th><th>web</th><th>ratio</th><th>d@onset</th><th>w@onset</th><th>status</th></tr></thead><tbody>${voiceRows}</tbody></table>
   ${fxRows}
@@ -188,10 +230,13 @@ function fixtureCard(c: Capture): string {
 
 // ── manifest + page ──────────────────────────────────────────────────────────
 const captures = loadCaptures()
+// Counts key on the EFFECTIVE verdict (SV61/SV69): structure-match + onset/note
+// match = EVENT-MATCH; structure-match but onset/notes diverge = SEQUENCE-DIVERGE
+// (a real divergence, the #537 PRNG class) — folded into `diverge`, not `match`.
 const counts = {
-  match: captures.filter((c) => c.report.verdict === 'STRUCTURE-MATCH').length,
-  diverge: captures.filter((c) => c.report.verdict === 'STRUCTURE-DIVERGE').length,
-  empty: captures.filter((c) => c.report.verdict.includes('EMPTY')).length,
+  match: captures.filter((c) => isMatchEff(effectiveVerdict(c.report))).length,
+  diverge: captures.filter((c) => isDivergeEff(effectiveVerdict(c.report))).length,
+  empty: captures.filter((c) => effectiveVerdict(c.report).includes('EMPTY')).length,
   total: captures.length,
 }
 const now = new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
@@ -204,7 +249,9 @@ writeFileSync(
       counts,
       fixtures: captures.map((c) => ({
         name: c.name,
-        verdict: c.report.verdict,
+        verdict: effectiveVerdict(c.report),       // SV61/SV69 effective (folds onset/note parity)
+        structureVerdict: c.report.verdict,         // raw multiset verdict (pre-sequence)
+        sequenceMatch: c.report.sequenceParity?.match ?? null,
         isPrng: c.report.isPrng,
         desktopTotal: c.report.desktopTotal,
         webTotal: c.report.webTotal,
@@ -303,13 +350,13 @@ ${navBlock('event-level /s_new parity · #446')}
   <h1>Event Diff — /s_new structure: count · order · onset</h1>
   <p class="sub">Desktop Sonic Pi ↔ browser engine, the literal <b>/s_new</b> event streams (not audio). Built <b>${esc(now)}</b>. Desktop via scsynth <code>/dumpOSC</code>; web via the engine's OSC trace.</p>
   <div class="hero">
-    <span class="stat pass">STRUCTURE-MATCH <b>${counts.match}</b></span>
-    <span class="stat fail">STRUCTURE-DIVERGE <b>${counts.diverge}</b></span>
+    <span class="stat pass">EVENT-MATCH <b>${counts.match}</b></span>
+    <span class="stat fail">DIVERGE <b>${counts.diverge}</b></span>
     <span class="stat incon">EMPTY <b>${counts.empty}</b></span>
     <span class="stat">fixtures <b>${counts.total}</b></span>
   </div>
   <div class="caveat">
-    <b>How to read this.</b> This diffs the literal /s_new streams desktop and web send to scsynth — it is the event-level companion to the audio comparator (which is opaque past desktop's audio). <b>PRNG param VALUES are not diffed</b> (SV49 — desktop reads a frozen rand-stream, we use MT19937). The robust divergence signal is a <b>DROPPED significant layer</b> (a synthdef desktop produces that web never does). A fixed wall-clock window counts more events on the faster-progressing engine, so raw counts mislead for PRNG/multi-thread pieces — the verdict keys on dropped layers + <b>first-onset gaps</b> (highlighted), which catch gating/timing divergence (e.g. <code>live_loop delay:</code>).
+    <b>How to read this.</b> This diffs the literal /s_new streams desktop and web send to scsynth — it is the event-level companion to the audio comparator (which is opaque past desktop's audio). The verdict folds three axes: synthdef <b>structure</b> (a DROPPED significant layer is the robust divergence signal), per-synthdef <b>onset timing</b>, and per-tick <b>NOTE values</b>. <b>PRNG pieces are now fully graded</b> — post-EPIC-#531 the engine's random walk matches desktop's frozen rand-stream note-for-note (SV69, superseding the old SV49 "values not diffed" non-goal); a PRNG piece whose onset-sequence or notes diverge is a real divergence (tracked in #537). A fixed wall-clock window counts more events on the faster-progressing engine, so raw counts are prefix-compared.
   </div>
   ${cards}
   <footer>Generated by <code>tools/build-event-diff.ts</code> from <code>.captures/eventparity_*.json</code> (latest per fixture). Captures from <code>tools/event-parity.ts</code>. Re-run after new captures to refresh.</footer>
