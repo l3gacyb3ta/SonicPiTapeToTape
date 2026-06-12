@@ -10,7 +10,8 @@
 
 import type { Step, Program } from './Program'
 import { SPRand } from './SPRand'
-import { getWhiteRandStream } from './RandStream'
+import { getWhiteRandStream, getRandStreams, RAND_SOURCES } from './RandStream'
+import type { RandSource } from './RandStream'
 import { noteToMidi, noteToMidiStrict, midiToFreq, hzToMidi, noteInfo } from './NoteToFreq'
 import { ring, knit, range, line, Ring, Ramp } from './Ring'
 import { spread } from './EuclideanRhythm'
@@ -134,7 +135,10 @@ export class ProgramBuilder {
     // EPIC #531: index desktop's shared frozen rand stream (loaded at boot),
     // not a per-builder MT19937. getWhiteRandStream() throws if boot didn't load
     // it — never silently fall back to a divergent stream.
-    this.rng = new SPRand(getWhiteRandStream(), seed)
+    // EPIC #531 Phase 4: pass ALL loaded distribution tables so `use_random_source`
+    // can switch among white/pink/light_pink/dark_pink/perlin. White is the active
+    // default; the others throw at use if a consumer didn't serve them.
+    this.rng = new SPRand(getWhiteRandStream(), seed, getRandStreams())
     if (initialTicks) this.ticks = new Map(initialTicks)
   }
 
@@ -366,14 +370,37 @@ export class ProgramBuilder {
    * one thread with one stream (it does NOT re-seed per iteration). The engine
    * restores this before each iteration's build and saves it after.
    */
-  getRandomState(): { seed: number; idx: number } {
+  getRandomState(): { seed: number; idx: number; source: RandSource } {
     return this.rng.getState()
   }
 
-  /** EPIC #531 Phase 3: restore a (seed, idx) snapshot (see getRandomState). */
-  setRandomState(state: { seed: number; idx: number }): this {
+  /** EPIC #531 Phase 3: restore a (seed, idx[, source]) snapshot (see getRandomState). */
+  setRandomState(state: { seed: number; idx: number; source?: RandSource }): this {
     this.rng.setState(state)
     return this
+  }
+
+  /**
+   * `use_random_source src` (EPIC #531 Phase 4, desktop core.rb:3535). Switch the
+   * distribution the random stream reads — :white (default) / :pink / :light_pink
+   * / :dark_pink / :perlin. Does NOT reset the draw position (idx) — desktop
+   * shares one position across distributions. Invalid name → warn + no-op (don't
+   * kill the run); a valid-but-unloaded table throws via SPRand.setSource.
+   */
+  use_random_source(source: string): this {
+    if (!(RAND_SOURCES as readonly string[]).includes(source)) {
+      this._warnHandler?.(
+        `use_random_source: invalid noise type '${source}' — use :white, :pink, :light_pink, :dark_pink or :perlin`,
+      )
+      return this
+    }
+    this.rng.setSource(source as RandSource)
+    return this
+  }
+
+  /** `current_random_source` (EPIC #531 Phase 4) — the active distribution. */
+  current_random_source(): RandSource {
+    return this.rng.getSource()
   }
 
   /** Read seed + idx — matches Desktop SP's current_random_seed. (#227) */
@@ -734,8 +761,11 @@ export class ProgramBuilder {
       // child_seed = rand!(441000, gen_idx) + parent_seed, gen_idx++ per spawn.
       // Replaces the old `rng.next()*0xFFFFFFFF` which both CONSUMED a parent
       // draw (desktop's explicit-idx peek does not) and produced a non-desktop
-      // seed. idx 0 so the child stream starts at its seed position.
-      inner.rng.setState({ seed: this.deriveChildSeed(), idx: 0 })
+      // seed. idx 0 so the child stream starts at its seed position; the child
+      // INHERITS the parent's distribution (Phase 4 — desktop copies gen_type into
+      // the new thread's locals, runtime.rb:1153-1159; the `:white` default only
+      // applies when the parent never set one).
+      inner.rng.setState({ seed: this.deriveChildSeed(), idx: 0, source: this.rng.getSource() })
     }
     return inner
   }
@@ -1301,6 +1331,21 @@ export class ProgramBuilder {
     this.rng.reset(seed)
     buildFn(this)
     this.rng.setState(prevState)
+    return this
+  }
+
+  /**
+   * `with_random_source src do … end` (EPIC #531 Phase 4, desktop core.rb:3596).
+   * Switch distribution for the block, then restore the PREVIOUS source. Restores
+   * the source ONLY — the draw position (idx) is NOT saved/restored, so it keeps
+   * advancing through the block (desktop `test_rand_type`: after the block, the
+   * outer source reads at the post-block idx).
+   */
+  with_random_source(source: string, buildFn: (b: ProgramBuilder) => void): this {
+    const prev = this.rng.getSource()
+    this.use_random_source(source)
+    buildFn(this)
+    this.rng.setSource(prev)
     return this
   }
 

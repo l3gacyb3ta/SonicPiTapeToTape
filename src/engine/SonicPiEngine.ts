@@ -1,7 +1,8 @@
 import { VirtualTimeScheduler, DEFAULT_SCHED_AHEAD_TIME, type TaskState } from './VirtualTimeScheduler'
 import { ProgramBuilder } from './ProgramBuilder'
 import { EventHistory, TimeStateView } from './EventHistory'
-import { loadWhiteRandStream, isWhiteRandStreamLoaded } from './RandStream'
+import { loadRandStreams, isWhiteRandStreamLoaded } from './RandStream'
+import type { RandSource } from './RandStream'
 import { runProgram, type AudioContext as AudioCtx } from './interpreters/AudioInterpreter'
 import { queryLoopProgram, type QueryEvent } from './interpreters/QueryInterpreter'
 import { SuperSonicBridge, type SuperSonicBridgeOptions } from './SuperSonicBridge'
@@ -176,7 +177,7 @@ export class SonicPiEngine {
    * `rand` is one continuous stream — desktop semantics (live_loop is one thread,
    * one stream). Cleared/derived on the same lifecycle as loopTicks.
    */
-  private loopRngState = new Map<string, { seed: number; idx: number }>()
+  private loopRngState = new Map<string, { seed: number; idx: number; source: RandSource }>()
   /** Per-loop tick counters — persisted across iterations so ring.tick() advances correctly */
   private loopTicks = new Map<string, Map<string, number>>()
   /** Per-loop beat counter — persisted across iterations so current_beat keeps growing (#226) */
@@ -385,10 +386,16 @@ export class SonicPiEngine {
     // Browser fetches the served wav; Node tests preload it via vitest setup (so
     // it's already loaded here). FATAL if missing — rand without the table would
     // silently diverge from desktop, the bug this EPIC removes.
+    // EPIC #531 Phase 4: load all 5 distribution tables (white + pink/light_pink/
+    // dark_pink/perlin) from the served dir. White is fatal-if-missing (the bug
+    // this EPIC removes); the 4 distributions are best-effort (use_random_source
+    // throws loudly if one is used but wasn't served). Base = randStreamUrl with
+    // the filename stripped (default '/rand-stream.wav' → '/').
+    const randStreamBase = this.randStreamUrl.replace(/[^/]*$/, '')
     const randStreamInit =
       isWhiteRandStreamLoaded() || !isBrowser
         ? Promise.resolve()
-        : loadWhiteRandStream(this.randStreamUrl)
+        : loadRandStreams(randStreamBase)
 
     await Promise.all([bridgeInit, treeSitterInit, randStreamInit])
 
@@ -910,8 +917,15 @@ export class SonicPiEngine {
           // never matched desktop (SP140 / the Phase-3 E2E unlock). Derived once
           // at registration; persists across iterations (continuous stream) and
           // across hot-swaps (a running loop keeps its stream, like desktop).
+          // Phase 4: the loop also INHERITS the top-level distribution
+          // (use_random_source), like the seed — desktop copies gen_type into the
+          // forked thread's locals (runtime.rb:1153-1159).
           const childSeed = topLevelBuilder.deriveChildSeed()
-          this.loopRngState.set(name, { seed: childSeed, idx: 0 })
+          this.loopRngState.set(name, {
+            seed: childSeed,
+            idx: 0,
+            source: topLevelBuilder.current_random_source(),
+          })
         }
 
         // Create the async function that builds a Program each iteration
@@ -992,7 +1006,7 @@ export class SonicPiEngine {
           // advances CONTINUOUSLY across iterations (desktop live_loop = one
           // thread, one stream — no per-iteration re-seed). Saved back after the
           // build (below). Replaces the old per-iteration `seed++` scheme.
-          const rngState = this.loopRngState.get(name) ?? { seed: 0, idx: 0 }
+          const rngState = this.loopRngState.get(name) ?? { seed: 0, idx: 0, source: 'white' as RandSource }
           const builder = new ProgramBuilder(0, this.loopTicks.get(name))
           builder.setRandomState(rngState)
           // #513: loop bodies that call sample_duration / use_sample_bpm need the
@@ -1361,6 +1375,17 @@ export class SonicPiEngine {
       const topLevelUseRandomSeed = (seed: number) => {
         storedRandomSeed = seed
         topLevelBuilder.use_random_seed(seed)
+      }
+
+      // Top-level use_random_source (EPIC #531 Phase 4): set the distribution that
+      // live_loops inherit at registration AND the topLevelBuilder's own stream
+      // (top-level rand/choose). `use_random_source` is a TOP_LEVEL_SETTING, so the
+      // eager top-level call runs before any loop registers (same shape as the
+      // seed). storedRandomSource kept symmetric with storedRandomSeed.
+      let storedRandomSource: string | null = null
+      const topLevelUseRandomSource = (source: string) => {
+        storedRandomSource = source
+        topLevelBuilder.use_random_source(source)
       }
 
       // Top-level in_thread: wrap callback in a one-shot live_loop.
@@ -1955,6 +1980,10 @@ export class SonicPiEngine {
         // the trailing DSL_NAMES entries (SP37 positional-list invariant).
         topLevelUseTranspose,
         topLevelUseSynthDefaults,
+        // EPIC #531 Phase 4 — top-level use_random_source / current_random_source.
+        // MUST stay last to align with the trailing DSL_NAMES entries (SP37).
+        topLevelUseRandomSource,
+        () => topLevelBuilder.current_random_source(),
       ]
 
       const codeWarnings = validateCode(transpiledCode)

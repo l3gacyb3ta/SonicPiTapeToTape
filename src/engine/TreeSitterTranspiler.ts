@@ -273,7 +273,7 @@ interface TranspileContext {
 const BUILDER_METHODS = new Set([
   // Core
   'play', 'sleep', 'wait', 'sample', 'sync', 'sync_bpm', 'cue', 'set', 'get',
-  'use_synth', 'use_bpm', 'use_random_seed',
+  'use_synth', 'use_bpm', 'use_random_seed', 'use_random_source',
   'control', 'stop', 'live_audio',
   'with_fx', 'in_thread', 'at',
   'puts', 'print',
@@ -295,7 +295,7 @@ const BUILDER_METHODS = new Set([
   'factor_q', 'bools', 'play_pattern_timed', 'sample_duration', 'stretch', 'ramp',
   'hz_to_midi', 'midi_to_hz', 'quantise', 'quantize', 'octs',
   'kill', 'play_chord', 'play_pattern', 'tuplets',
-  'with_octave', 'with_random_seed', 'with_density', 'with_swing',
+  'with_octave', 'with_random_seed', 'with_random_source', 'with_density', 'with_swing',
   'noteToMidi', 'midiToFreq', 'noteToFreq', 'note_info',
   // Data constructors
   'ring', 'knit', 'range', 'line', 'spread',
@@ -314,7 +314,7 @@ const BUILDER_METHODS = new Set([
   'bt', 'rt', 'vt',
   // Tier B — PRNG inspection (#227). Per-task RNG mutations — route through
   // __b so they hit the calling builder's seeded random stream.
-  'current_random_seed', 'rand_back', 'rand_skip', 'rand_reset',
+  'current_random_seed', 'current_random_source', 'rand_back', 'rand_skip', 'rand_reset',
   // Tier B PR #2 — defaults / setting introspection (#233). Per-task pure
   // reads — route through __b so per-loop use_*_defaults are visible.
   'current_synth_defaults', 'current_sample_defaults',
@@ -377,7 +377,7 @@ function defJsName(name: string): string {
 
 const TOP_LEVEL_SCOPE = new Set([
   'live_loop', 'stop_loop', 'define',
-  'use_bpm', 'use_synth', 'use_random_seed', 'use_arg_bpm_scaling',
+  'use_bpm', 'use_synth', 'use_random_seed', 'use_random_source', 'use_arg_bpm_scaling',
   'in_thread', 'at', 'density',
   'with_fx', 'with_arg_bpm_scaling',
   // Global store
@@ -429,7 +429,7 @@ const BARE_CALLABLE = new Set([
   // Tier B — PRNG inspection (#227). current_random_seed and rand_reset are
   // typically called without parens. rand_back / rand_skip take an optional
   // arg but are also valid bare (rand_back == rand_back(1)).
-  'current_random_seed', 'rand_back', 'rand_skip', 'rand_reset',
+  'current_random_seed', 'current_random_source', 'rand_back', 'rand_skip', 'rand_reset',
   // Tier B — recording (#228). Three of the four are 0-arity and routinely
   // called bare (`recording_start`, not `recording_start()`). Inside a
   // BARE_DSL_CALLS-wrapped run-once block they need __b.recording_*()
@@ -1066,7 +1066,7 @@ function subtreeHasBareDslCall(node: any): boolean {
 // live_loop reads the unchanged defaultBpm and the tempo is a no-op. Same
 // flow-sensitive class as use_bpm (SV55/#420; surfaced by the --wrap-recording
 // capture path reintroducing the #513 no-op).
-const TOP_LEVEL_SETTINGS = new Set(['use_bpm', 'use_sample_bpm', 'use_random_seed', 'use_debug', 'use_arg_bpm_scaling'])
+const TOP_LEVEL_SETTINGS = new Set(['use_bpm', 'use_sample_bpm', 'use_random_seed', 'use_random_source', 'use_debug', 'use_arg_bpm_scaling'])
 
 // #419/SV55: extract a literal synth name from a `use_synth :X` / `use_synth "X"`
 // call. Returns the bare name for a literal symbol/string arg, or null for a
@@ -1449,7 +1449,7 @@ function transpileMethodCall(node: any, ctx: TranspileContext): string {
     }
 
     // with_fx :name, opts do ... end
-    if (methodName === 'with_fx' || methodName === 'with_synth' || methodName === 'with_bpm' || methodName === 'with_sample_bpm' || methodName === 'with_transpose' || methodName === 'with_arg_bpm_scaling' || methodName === 'with_synth_defaults' || methodName === 'with_sample_defaults' || methodName === 'with_random_seed' || methodName === 'with_octave' || methodName === 'with_arg_checks' || methodName === 'with_debug' || methodName === 'with_timing_guarantees' || methodName === 'with_merged_synth_defaults' || methodName === 'with_merged_sample_defaults') {
+    if (methodName === 'with_fx' || methodName === 'with_synth' || methodName === 'with_bpm' || methodName === 'with_sample_bpm' || methodName === 'with_transpose' || methodName === 'with_arg_bpm_scaling' || methodName === 'with_synth_defaults' || methodName === 'with_sample_defaults' || methodName === 'with_random_seed' || methodName === 'with_random_source' || methodName === 'with_octave' || methodName === 'with_arg_checks' || methodName === 'with_debug' || methodName === 'with_timing_guarantees' || methodName === 'with_merged_synth_defaults' || methodName === 'with_merged_sample_defaults') {
       return transpileWithBlock(methodName, argsNode, blockNode, ctx)
     }
 
@@ -1546,6 +1546,14 @@ function transpileMethodCall(node: any, ctx: TranspileContext): string {
       const args = argsNode ? transpileArgList(argsNode, ctx) : ''
       const prefix = ctx.insideLoop ? '__b.' : ''
       return `${prefix}use_random_seed(${args})`
+    }
+
+    // use_random_source :pink (EPIC #531 Phase 4) — the symbol arg transpiles to a
+    // string ("pink"); inside a loop it routes through __b like use_random_seed.
+    if (methodName === 'use_random_source' || methodName === 'current_random_source') {
+      const args = argsNode ? transpileArgList(argsNode, ctx) : ''
+      const prefix = ctx.insideLoop ? '__b.' : ''
+      return `${prefix}${methodName}(${args})`
     }
 
     // use_synth_defaults / use_sample_defaults — all args become a single opts object

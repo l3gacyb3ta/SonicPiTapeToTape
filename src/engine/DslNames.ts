@@ -162,6 +162,13 @@ export const DSL_NAMES = [
   // live_loops these still route through __b (BARE_DSL_CALLS), unchanged.
   // MUST stay index-aligned with dslValues in SonicPiEngine (SP37).
   'use_transpose', 'use_synth_defaults',
+  // EPIC #531 Phase 4 — top-level use_random_source / current_random_source.
+  // use_random_source is a TOP_LEVEL_SETTING (eager source-order prefix carries
+  // the distribution into each loop's registration, like use_random_seed);
+  // current_random_source reads the topLevelBuilder's active distribution. Inside
+  // live_loops both route through __b. MUST stay last to align with the trailing
+  // dslValues entries (SP37 positional-list invariant).
+  'use_random_source', 'current_random_source',
 ] as const
 
 export type DslName = typeof DSL_NAMES[number]

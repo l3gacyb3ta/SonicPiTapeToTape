@@ -100,7 +100,7 @@ describe('SPRand stream mechanics (#531)', () => {
     r.reset(99)
     r.next()
     r.setState(snap)
-    expect(r.getState()).toEqual({ seed: 7, idx: 2 })
+    expect(r.getState()).toEqual({ seed: 7, idx: 2, source: 'white' })
     expect(r.peek()).toBe(7 + 2 + 1)
   })
 
@@ -108,8 +108,8 @@ describe('SPRand stream mechanics (#531)', () => {
     const r = new SPRand(T, 3)
     r.next()
     const c = r.clone()
-    expect(c.getState()).toEqual({ seed: 3, idx: 1 })
+    expect(c.getState()).toEqual({ seed: 3, idx: 1, source: 'white' })
     c.next()
-    expect(r.getState()).toEqual({ seed: 3, idx: 1 }) // original untouched
+    expect(r.getState()).toEqual({ seed: 3, idx: 1, source: 'white' }) // original untouched
   })
 })
