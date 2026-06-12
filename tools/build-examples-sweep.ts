@@ -126,8 +126,20 @@ EXAMPLES.sort()
 
 function findLatestReport(exampleBaseNoExt: string): string | null {
   if (!existsSync(CAPTURES)) return null
+  // Match the report's NAME SEGMENT (everything after the ISO timestamp's `Z_`)
+  // EXACTLY — not as a suffix. The old `endsWith('_<base>.md')` let a community /
+  // in-thread-forum report `compare_<ts>Z_comm-<roster>__NN_<base>.md` (a DIFFERENT
+  // remix that happens to share the bare basename, e.g. community__10_idm_breakbeat)
+  // collide with the official/book `<base>` row. Because community runs LAST in the
+  // full sweep its report has the newest mtime and wins the sort — poisoning the
+  // official verdict (official idm_breakbeat EVENT-MATCH mis-read as the community
+  // remix's DIVERGE). Anchoring on the timestamp boundary makes the match exact.
   const files = readdirSync(CAPTURES)
-    .filter(f => f.startsWith('compare_') && f.endsWith(`_${exampleBaseNoExt}.md`))
+    .filter(f => {
+      if (!f.startsWith('compare_') || !f.endsWith('.md')) return false
+      const m = f.match(/Z_(.+)\.md$/)
+      return m !== null && m[1] === exampleBaseNoExt
+    })
     .map(f => resolve(CAPTURES, f))
   if (!files.length) return null
   files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
