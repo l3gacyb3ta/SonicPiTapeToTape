@@ -175,9 +175,9 @@ const html = `<!doctype html>
 <a id="top"></a>
 ${navBlock('desktop ↔ web parity · launch-gate evidence')}
 <header>
-  <h1>Launch-Gate Detail — the 7 gradeable official rows</h1>
-  <p>These are the gate-report denominator: every bundled official example that is <strong>PRNG-free and non-heavy</strong> (27 PRNG-driven rows are excluded — cross-engine random parity is a deliberate non-goal, SV49). On these deterministic rows the engine is held to exact desktop parity.</p>
-  <div class="hero">Launch gate: 7/7 = 100% &middot; all EVENT-MATCH / MATCH</div>
+  <h1>Launch-Gate Detail — the deterministic core rows</h1>
+  <p>These are the PRNG-free, non-heavy official rows — the instrument-blind ones graded via projection plus the deterministic raw-sweep rows. On them the engine is held to exact desktop parity. <strong>Post-EPIC-#531 the gate denominator also includes the PRNG-driven rows</strong>, now graded by <code>/s_new</code> event-parity (the random walk matches desktop note-for-note, SV69 — the SV49 non-goal is retired); see the <a href="launch-gate.html">launch-gate page</a> for the full roster and the live pass percentage.</p>
+  <div class="hero">Deterministic core &middot; all EVENT-MATCH / MATCH</div>
   ${generatedNote}
   <div class="links">
     <a href="index.html">← aggregate index</a>

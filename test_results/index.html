@@ -100,17 +100,17 @@
 <script src="nav.js"></script>
 <div class="wrap">
   <h1>SonicPi.js — Parity Dashboard</h1>
-  <p class="sub">Desktop Sonic Pi ↔ browser engine, every example pool. Built <b>2026-06-09 22:20 UTC</b> from the freshly-captured manifests. <b>Tier-1 pitch is the verdict</b> (SV46); consistency scores are timbre/level support only.</p>
+  <p class="sub">Desktop Sonic Pi ↔ browser engine, every example pool. Built <b>2026-06-12 16:23 UTC</b> from the freshly-captured manifests. <b>Tier-1 pitch is the verdict</b> (SV46); consistency scores are timbre/level support only.</p>
 
   <a class="gate-hero pass" href="launch-gate.html">
     <div class="gate-left">
       <div class="gate-verdict">🚦 Tier-1 launch gate — PASS</div>
-      <div class="gate-big"><b>7/7</b> <span>= 100%</span></div>
+      <div class="gate-big"><b>27/32</b> <span>= 84.4%</span></div>
       <div class="gate-badge pass">roster PASS <small>(≥ 70%)</small></div>
       <div class="gate-badge pass">matrix ✓ 52/52</div>
-      <div class="gate-excl">excluded: ambient_experiment (PRNG non-goal SV49)</div>
+      
     </div>
-    <div class="gate-rows"><div class="grow p"><span>✓</span><code>chord_inversions</code><em>match · projection</em></div><div class="grow p"><span>✓</span><code>reich_phase</code><em>match · projection</em></div><div class="grow p"><span>✓</span><code>dark_neon</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>mod_303_phade</code><em>match · raw-refreshed</em></div><div class="grow p"><span>✓</span><code>bach</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>driving_pulse</code><em>match · projection</em></div><div class="grow p"><span>✓</span><code>monday_blues</code><em>match · projection</em></div></div>
+    <div class="gate-rows"><div class="grow p"><span>✓</span><code>blockgame</code><em>event-match · raw-sweep</em></div><div class="grow f"><span>✗</span><code>cloud_beat</code><em>diverge · raw-sweep</em></div><div class="grow p"><span>✓</span><code>sonic_dreams</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>haunted</code><em>match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>ambient_experiment</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>chord_inversions</code><em>match · projection</em></div><div class="grow p"><span>✓</span><code>filtered_dnb</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>fm_noise</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>jungle</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>ocean</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>reich_phase</code><em>match · projection</em></div><div class="grow p"><span>✓</span><code>crushed</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>dark_neon</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>mod_303_phade</code><em>match · raw-refreshed</em></div><div class="grow f"><span>✗</span><code>orchard_improv</code><em>diverge · raw-sweep</em></div><div class="grow p"><span>✓</span><code>syncer</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>acid</code><em>event-match · raw-sweep</em></div><div class="grow f"><span>✗</span><code>ambient</code><em>diverge · raw-sweep</em></div><div class="grow p"><span>✓</span><code>compus_beats</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>echo_drama</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>idm_breakbeat</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>tron_bike</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>wob_rhyth</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>bach</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>driving_pulse</code><em>match · projection</em></div><div class="grow f"><span>✗</span><code>lorezzed</code><em>diverge · raw-sweep</em></div><div class="grow p"><span>✓</span><code>monday_blues</code><em>match · projection</em></div><div class="grow p"><span>✓</span><code>rerezzed</code><em>event-match · raw-sweep</em></div><div class="grow f"><span>✗</span><code>square_skit</code><em>diverge · raw-sweep</em></div><div class="grow p"><span>✓</span><code>blip_rhythm</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>tilburg_2</code><em>event-match · raw-sweep</em></div><div class="grow p"><span>✓</span><code>time_machine</code><em>event-match · raw-sweep</em></div></div>
   </a>
 
   <div class="section-h">Tier-1 pitch parity — the musical-correctness verdict</div>
@@ -118,19 +118,19 @@
     <a class="pool-card" href="examples-sweep.html">
     <div class="pool-head"><span class="pool-title">Official examples</span><span class="pool-n">34</span></div>
     <div class="scheme tier1">Tier-1 pitch parity · the verdict (SV46)</div>
-    <div class="chips"><span class="chip pass" title="MATCH">MATCH <b>1</b></span><span class="chip pass" title="EVENT-MATCH">EVENT-MATCH <b>6</b></span><span class="chip accent" title="PRNG-variant">PRNG-variant <b>5</b></span><span class="chip fail" title="DIVERGE">DIVERGE <b>16</b></span><span class="chip incon" title="INCONCL">INCONCL <b>6</b></span></div>
+    <div class="chips"><span class="chip pass" title="MATCH">MATCH <b>1</b></span><span class="chip pass" title="EVENT-MATCH">EVENT-MATCH <b>25</b></span><span class="chip fail" title="DIVERGE">DIVERGE <b>6</b></span><span class="chip incon" title="INVALID">INVALID <b>2</b></span></div>
     <div class="pool-foot">
-      <span><b>0</b> PRNG-free real divergences · 27 PRNG-driven · 0 heavy-tool-fail</span>
-      <span class="stamp">2026-06-09 22:20 UTC</span>
+      <span><b>6</b> real divergences · 27 PRNG-driven (graded by event-parity, SV69) · 2 heavy-tool-fail</span>
+      <span class="stamp">2026-06-12 16:23 UTC</span>
     </div>
   </a>
     <a class="pool-card" href="book-examples-sweep.html">
     <div class="pool-head"><span class="pool-title">Book / curriculum</span><span class="pool-n">18</span></div>
     <div class="scheme tier1">Tier-1 pitch parity · the verdict (SV46)</div>
-    <div class="chips"><span class="chip pass" title="MATCH">MATCH <b>2</b></span><span class="chip pass" title="EVENT-MATCH">EVENT-MATCH <b>5</b></span><span class="chip accent" title="PRNG-variant">PRNG-variant <b>3</b></span><span class="chip fail" title="DIVERGE">DIVERGE <b>5</b></span><span class="chip incon" title="INCONCL">INCONCL <b>3</b></span></div>
+    <div class="chips"><span class="chip pass" title="MATCH">MATCH <b>2</b></span><span class="chip pass" title="EVENT-MATCH">EVENT-MATCH <b>6</b></span><span class="chip accent" title="PRNG-variant">PRNG-variant <b>1</b></span><span class="chip fail" title="DIVERGE">DIVERGE <b>4</b></span><span class="chip incon" title="INVALID">INVALID <b>5</b></span></div>
     <div class="pool-foot">
-      <span><b>0</b> PRNG-free real divergences · 12 PRNG-driven · 0 heavy-tool-fail</span>
-      <span class="stamp">2026-06-09 22:20 UTC</span>
+      <span><b>4</b> real divergences · 12 PRNG-driven (graded by event-parity, SV69) · 5 heavy-tool-fail</span>
+      <span class="stamp">2026-06-12 16:23 UTC</span>
     </div>
   </a>
   </div>
@@ -143,16 +143,16 @@
     <div class="chips"><span class="chip flag" title="MID">MID <b>10</b></span></div>
     <div class="pool-foot">
       <span></span>
-      <span class="stamp">2026-06-09 22:20 UTC</span>
+      <span class="stamp">2026-06-12 16:21 UTC</span>
     </div>
   </a>
     <a class="pool-card" href="community.html">
     <div class="pool-head"><span class="pool-title">Community + in-thread-forum</span><span class="pool-n">48</span></div>
     <div class="scheme tier23">⚠ consistency score · Tier-2/3 timbre+level · NOT pitch (SV46)</div>
-    <div class="chips"><span class="chip pass" title="HIGH">HIGH <b>12</b></span><span class="chip flag" title="MID">MID <b>18</b></span><span class="chip fail" title="LOW">LOW <b>9</b></span><span class="chip incon" title="INCONCL">INCONCL <b>9</b></span></div>
+    <div class="chips"><span class="chip pass" title="HIGH">HIGH <b>12</b></span><span class="chip flag" title="MID">MID <b>16</b></span><span class="chip fail" title="LOW">LOW <b>9</b></span><span class="chip incon" title="INCONCL">INCONCL <b>11</b></span></div>
     <div class="pool-foot">
-      <span>46/48 captured · community 28 · in-thread-forum 20</span>
-      <span class="stamp">2026-06-09 22:20 UTC</span>
+      <span>43/48 captured · community 28 · in-thread-forum 20</span>
+      <span class="stamp">2026-06-12 16:21 UTC</span>
     </div>
   </a>
   </div>
@@ -160,18 +160,18 @@
   <div class="section-h">Event-level structure — /s_new parity (no audio, complements the audio comparator)</div>
   <div class="grid">
     <a class="pool-card" href="event-diff.html">
-    <div class="pool-head"><span class="pool-title">Event Diff (desktop ↔ web /s_new)</span><span class="pool-n">63</span></div>
+    <div class="pool-head"><span class="pool-title">Event Diff (desktop ↔ web /s_new)</span><span class="pool-n">115</span></div>
     <div class="scheme tierE">event-level structure · /s_new count · order · onset (no audio) · #446</div>
-    <div class="chips"><span class="chip pass" title="STRUCTURE-MATCH">STRUCTURE-MATCH <b>62</b></span><span class="chip incon" title="EMPTY">EMPTY <b>1</b></span></div>
+    <div class="chips"><span class="chip pass" title="EVENT-MATCH">EVENT-MATCH <b>94</b></span><span class="chip fail" title="DIVERGE">DIVERGE <b>19</b></span><span class="chip incon" title="EMPTY">EMPTY <b>2</b></span></div>
     <div class="pool-foot">
-      <span>desktop via scsynth <code>/dumpOSC</code> · web via OSC trace · PRNG values not diffed (SV49)</span>
-      <span class="stamp">2026-06-09 22:20 UTC</span>
+      <span>desktop via scsynth <code>/dumpOSC</code> · web via OSC trace · structure + onset + per-tick notes diffed (PRNG values now match desktop, SV69)</span>
+      <span class="stamp">2026-06-12 16:23 UTC</span>
     </div>
   </a>
   </div>
 
   <div class="caveat">
-    <b>Why two schemes?</b> Official + book are graded on <b>Tier-1 pitch</b> (note progression, the verdict — a MATCH means the right notes at the right time). E2E + community are graded on a <b>consistency score</b> (RMS/peak ratio + mel-L2 + MFCC = timbre &amp; level), which per the project's 6-Tier standard is <b>blind to wrong melody</b> and can never stand as a musical-correctness verdict. A HIGH there means "sounds tonally/loudness-similar to desktop", not "plays the right notes". MFCC is further confounded by the known ~0.5× web gain (#268) + reverb tail. PRNG-driven divergence is a declared v1 non-goal (SV49) and is classified, not counted as a defect.
+    <b>Why two schemes?</b> Official + book are graded on <b>Tier-1 pitch</b> (note progression, the verdict — a MATCH means the right notes at the right time). E2E + community are graded on a <b>consistency score</b> (RMS/peak ratio + mel-L2 + MFCC = timbre &amp; level), which per the project's 6-Tier standard is <b>blind to wrong melody</b> and can never stand as a musical-correctness verdict. A HIGH there means "sounds tonally/loudness-similar to desktop", not "plays the right notes". MFCC is further confounded by the known ~0.5× web gain (#268) + reverb tail. PRNG-driven pieces are now graded by <code>/s_new</code> event-parity (EPIC #531 — the engine's random walk matches desktop's frozen rand-stream note-for-note, SV69, superseding the old SV49 non-goal); a PRNG divergence is a real divergence, tracked in #537.
   </div>
 
   <div class="links">

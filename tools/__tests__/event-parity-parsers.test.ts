@@ -297,14 +297,28 @@ describe('buildReport onset-sequence parity — NOTE axis (SV61, deterministic)'
     expect(r.sequenceParity.reasons.join(' ')).toMatch(/wrong notes|transposition/)
   })
 
-  it('does NOT check notes on PRNG pieces (notesChecked=false) — SV49, values vary by construction', () => {
-    // Same times, different notes, but the source is PRNG → notes are not compared
-    // (the random walk legitimately differs); timing parity still holds.
+  // SV69 (EPIC #531 Phase 5b): the SV49 "values vary by construction" non-goal is
+  // RETIRED. Our random walk now matches desktop's frozen rand-stream note-for-note,
+  // so NOTES are checked for PRNG pieces too — a divergent walk is a real divergence.
+  it('CHECKS notes on PRNG pieces (notesChecked=true) — SV69: a divergent random walk now DIVERGES', () => {
+    // Same times, different notes, source is PRNG → post-#531 the notes SHOULD match;
+    // here they do not, so this is a real divergence (the #537 class), not "variance".
     const times: Array<[number, number]> = [[0, 60], [1, 62], [2, 64], [3, 65], [4, 67]]
     const other: Array<[number, number]> = [[0, 72], [1, 48], [2, 55], [3, 90], [4, 53]]
     const r = buildReport(atN('sonic-pi-tb303', times), atN('sonic-pi-tb303', other), 's = scale(:c, :major).choose')
-    expect(r.sequenceParity.notesChecked).toBe(false)
-    expect(r.sequenceParity.rows[0].noteMatched).toBeNull()
-    expect(r.sequenceParity.match).toBe(true) // timing matches; notes not a criterion for PRNG
+    expect(r.isPrng).toBe(true)
+    expect(r.sequenceParity.notesChecked).toBe(true)
+    expect(r.sequenceParity.rows[0].timingMatched).toBe(true) // times identical
+    expect(r.sequenceParity.rows[0].noteMatched).toBe(false)   // …but the walk diverges
+    expect(r.sequenceParity.match).toBe(false)                 // → EVENT-DIVERGE, not a pass
+  })
+
+  it('PRNG piece whose walk MATCHES desktop note-for-note is an EVENT-MATCH (SV69)', () => {
+    const seq: Array<[number, number]> = [[0, 60], [1, 67], [2, 64], [3, 72], [4, 60]]
+    const r = buildReport(atN('sonic-pi-tb303', seq), atN('sonic-pi-tb303', seq), 's = [60,67,64,72].choose')
+    expect(r.isPrng).toBe(true)
+    expect(r.sequenceParity.notesChecked).toBe(true)
+    expect(r.sequenceParity.rows[0].noteMatched).toBe(true)
+    expect(r.sequenceParity.match).toBe(true)
   })
 })

@@ -126,8 +126,20 @@ EXAMPLES.sort()
 
 function findLatestReport(exampleBaseNoExt: string): string | null {
   if (!existsSync(CAPTURES)) return null
+  // Match the report's NAME SEGMENT (everything after the ISO timestamp's `Z_`)
+  // EXACTLY — not as a suffix. The old `endsWith('_<base>.md')` let a community /
+  // in-thread-forum report `compare_<ts>Z_comm-<roster>__NN_<base>.md` (a DIFFERENT
+  // remix that happens to share the bare basename, e.g. community__10_idm_breakbeat)
+  // collide with the official/book `<base>` row. Because community runs LAST in the
+  // full sweep its report has the newest mtime and wins the sort — poisoning the
+  // official verdict (official idm_breakbeat EVENT-MATCH mis-read as the community
+  // remix's DIVERGE). Anchoring on the timestamp boundary makes the match exact.
   const files = readdirSync(CAPTURES)
-    .filter(f => f.startsWith('compare_') && f.endsWith(`_${exampleBaseNoExt}.md`))
+    .filter(f => {
+      if (!f.startsWith('compare_') || !f.endsWith('.md')) return false
+      const m = f.match(/Z_(.+)\.md$/)
+      return m !== null && m[1] === exampleBaseNoExt
+    })
     .map(f => resolve(CAPTURES, f))
   if (!files.length) return null
   files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)
@@ -164,6 +176,11 @@ function parseReport(reportPath: string): Partial<SweepRow> {
     // promoted a false audio DIVERGE/INCONCL to a pass (engine plays the right
     // notes at the right times; residual is stage-7 rendering / tracker noise).
     if (/^✅ EVENT-MATCH\b/.test(row.verdictRaw)) row.verdict = 'event-match'
+    // SV69 (EPIC #531 Phase 5b): EVENT-DIVERGE = the /s_new onset-sequence / per-tick
+    // NOTE parity diverged from desktop. Matched BEFORE the PRNG-VARIANT rule below
+    // (the headline mentions neither, but order-safety: a real PRNG divergence is no
+    // longer demoted to the cos "variant" bucket — it is a real divergence).
+    else if (/^❌ EVENT-DIVERGE\b/.test(row.verdictRaw)) row.verdict = 'diverge'
     // #371: match ERROR before INVALID — the ERROR header contains "❌" too,
     // and the ERROR root cause must NOT be re-bucketed as a generic INVALID.
     else if (/^❌ ERROR\b/.test(row.verdictRaw) || /\bERROR\b — Web engine threw/.test(row.verdictRaw)) row.verdict = 'error'
@@ -349,11 +366,13 @@ for (const examplePath of EXAMPLES) {
     snippetSrc: exampleSrc,
     artifacts: { snippet: null, desktopWav: null, webWav: null, spectrogramPng: null, report: null },
   }
-  // PRNG-free real divergence: DIVERGE + no PRNG
-  // PRNG-free real divergences = engine bugs in non-random examples — the
-  // actionable backlog. ERROR rows are root-caused by a throw, not parity;
-  // they belong to their own bucket (#371) and must NOT inflate the backlog.
-  if (row.verdict === 'diverge' && !row.prng) row.prngFreeReal = true
+  // Real divergence = any DIVERGE verdict (the actionable backlog). Post-EPIC-#531
+  // (Phase 5b, SV69) PRNG pieces are graded by event-parity, so a PRNG DIVERGE is a
+  // REAL engine bug (a divergent random walk), no longer an SV49 non-goal — it
+  // counts here too. ERROR rows are root-caused by a throw, not parity; they belong
+  // to their own bucket (#371) and must NOT inflate the backlog. (Field name kept
+  // for manifest back-compat; it now means "real divergences", PRNG included.)
+  if (row.verdict === 'diverge') row.prngFreeReal = true
 
   // Copy artifacts into test_results/examples-sweep/<slug>/
   const slugDir = resolve(OUT_DIR, slug)
@@ -438,7 +457,7 @@ if (existsSync(VIEWER_HTML)) {
 
 console.log(`✓ Built ${rows.length} entries → ${OUT_JSON}`)
 console.log(`  match=${counts.match} · event-match=${counts.eventMatch} · prng-variant=${counts.prngVariant} · diverge=${counts.diverge} · invalid=${counts.invalid} · inconcl=${counts.inconcl} · error=${counts.error}`)
-console.log(`  PRNG-driven=${counts.prng} · PRNG-free real divergences=${counts.prngFreeReal} (the actionable backlog) · heavy-tool-fail=${counts.heavy}`)
+console.log(`  PRNG-driven=${counts.prng} · real divergences=${counts.prngFreeReal} (the actionable backlog, PRNG graded by event-parity, SV69) · heavy-tool-fail=${counts.heavy}`)
 const missingDesk = rows.filter(r => !r.artifacts.desktopWav).length
 const missingWeb = rows.filter(r => !r.artifacts.webWav).length
 const missingPng = rows.filter(r => !r.artifacts.spectrogramPng).length

@@ -70,43 +70,76 @@ export function decodeRandStream(bytes: ArrayBuffer | Uint8Array): Float64Array 
 }
 
 // ---------------------------------------------------------------------------
-// Process-wide white-stream singleton (EPIC #531 Phase 1b)
+// Process-wide random-stream registry (EPIC #531 Phase 1b + Phase 4)
 //
-// SPRand instances (one per ProgramBuilder) all index the SAME frozen table —
-// desktop loads it once at boot. We mirror that with one shared `Float64Array`,
-// loaded by whoever boots the engine: the browser fetches `/rand-stream.wav` in
-// `SonicPiEngine.init`; the Node test harness reads it from `public/` in the
-// vitest setup. ProgramBuilder reads it synchronously via `getWhiteRandStream`,
-// so it MUST be set before the first builder is constructed (which is after
-// init / setup, never at import time).
+// Desktop ships FIVE frozen tables — `white` (default) plus the `pink`,
+// `light_pink`, `dark_pink`, `perlin` distributions (`sprand_core.rb:136-140`,
+// selected by `use_random_source` / `random_numbers`). SPRand instances (one per
+// ProgramBuilder) index the SAME shared tables — desktop loads them once at boot.
+// We mirror that with one shared registry, loaded by whoever boots the engine:
+// the browser fetches `/rand-stream*.wav` in `SonicPiEngine.init`; the Node test
+// harness reads them from `public/` in the vitest setup. ProgramBuilder reads
+// them synchronously, so they MUST be set before the first builder is constructed
+// (after init / setup, never at import time). White is mandatory; the four
+// distributions are loaded best-effort — `use_random_source` to an unloaded
+// source throws loudly (never silently falls back to white, which would be the
+// exact silent-divergence trap this EPIC removes).
 // ---------------------------------------------------------------------------
 
-let whiteRandStream: Float64Array | null = null
+/** The random distribution sources desktop ships (`NOISE_TYPES`, white = default). */
+export const RAND_SOURCES = ['white', 'pink', 'light_pink', 'dark_pink', 'perlin'] as const
+export type RandSource = (typeof RAND_SOURCES)[number]
 
-/** Install the decoded white random stream. Called once at boot. */
+/** `RandSource` → relative wav filename (white is the bare `rand-stream.wav`). */
+export const RAND_SOURCE_FILES: Record<RandSource, string> = {
+  white: 'rand-stream.wav',
+  pink: 'rand-stream-pink.wav',
+  light_pink: 'rand-stream-light-pink.wav',
+  dark_pink: 'rand-stream-dark-pink.wav',
+  perlin: 'rand-stream-perlin.wav',
+}
+
+const randStreams: Partial<Record<RandSource, Float64Array>> = {}
+
+/** Install a decoded distribution table. Called once per source at boot. */
+export function setRandStream(source: RandSource, table: Float64Array): void {
+  randStreams[source] = table
+}
+
+/**
+ * A distribution's table. Throws if not loaded — a builder must never silently
+ * fall back to a wrong stream (re-introducing the MT19937-vs-desktop divergence
+ * this EPIC removes). `use_random_source :pink` before pink is loaded fails loud.
+ */
+export function getRandStream(source: RandSource): Float64Array {
+  const t = randStreams[source]
+  if (!t) {
+    throw new Error(
+      `rand stream '${source}' not loaded — SonicPiEngine.init() (browser) or the ` +
+        'test setup must load it before use_random_source selects it',
+    )
+  }
+  return t
+}
+
+/** All loaded distribution tables (white guaranteed by callers; others optional). */
+export function getRandStreams(): Partial<Record<RandSource, Float64Array>> {
+  return { ...randStreams }
+}
+
+/** Install the decoded WHITE random stream (back-compat alias for the default). */
 export function setWhiteRandStream(table: Float64Array): void {
-  whiteRandStream = table
+  randStreams.white = table
 }
 
 /** Whether the white random stream has been loaded (init/setup guard). */
 export function isWhiteRandStreamLoaded(): boolean {
-  return whiteRandStream !== null
+  return randStreams.white != null
 }
 
-/**
- * The shared white random table. Throws if not yet loaded — a builder must never
- * silently fall back to a wrong stream (that would re-introduce the exact
- * MT19937-vs-desktop divergence this EPIC removes). Boot order guarantees it is
- * set first: `SonicPiEngine.init` (browser) / vitest setup (Node).
- */
+/** The shared white random table. Throws if not loaded (see getRandStream). */
 export function getWhiteRandStream(): Float64Array {
-  if (!whiteRandStream) {
-    throw new Error(
-      'rand stream not loaded — SonicPiEngine.init() (browser) or the test setup ' +
-        'must call setWhiteRandStream() before any ProgramBuilder is constructed',
-    )
-  }
-  return whiteRandStream
+  return getRandStream('white')
 }
 
 /**
@@ -116,8 +149,34 @@ export function getWhiteRandStream(): Float64Array {
  * its own URL (mirrors the tree-sitter wasm URL override).
  */
 export async function loadWhiteRandStream(url = '/rand-stream.wav'): Promise<void> {
-  if (whiteRandStream) return
+  if (isWhiteRandStreamLoaded()) return
   const res = await fetch(url)
   if (!res.ok) throw new Error(`rand stream fetch failed: ${url} (${res.status})`)
   setWhiteRandStream(decodeRandStream(await res.arrayBuffer()))
+}
+
+/**
+ * Fetch + decode all five distribution streams (EPIC #531 Phase 4). White is
+ * mandatory (throws on failure — same contract as loadWhiteRandStream). The four
+ * distributions are best-effort: a fetch failure is warned, not fatal, so a
+ * consumer serving only `/rand-stream.wav` still boots — `use_random_source` to a
+ * missing source then throws loudly at use, never silently mis-seeds. `baseUrl`
+ * defaults to the served root (`/`); files are `RAND_SOURCE_FILES`.
+ */
+export async function loadRandStreams(baseUrl = '/'): Promise<void> {
+  const base = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'
+  await loadWhiteRandStream(base + RAND_SOURCE_FILES.white)
+  for (const source of RAND_SOURCES) {
+    if (source === 'white' || randStreams[source]) continue
+    try {
+      const res = await fetch(base + RAND_SOURCE_FILES[source])
+      if (!res.ok) throw new Error(`${res.status}`)
+      setRandStream(source, decodeRandStream(await res.arrayBuffer()))
+    } catch (e) {
+      console.warn(
+        `[SonicPi] rand distribution '${source}' not loaded (${(e as Error).message}); ` +
+          `use_random_source :${source} will error until it is served`,
+      )
+    }
+  }
 }

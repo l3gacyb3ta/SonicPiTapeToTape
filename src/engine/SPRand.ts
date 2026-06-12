@@ -28,23 +28,43 @@
  * phase lands the exact value SOURCE and the seed/idx mechanics.
  */
 import { RAND_STREAM_LENGTH } from './RandStream'
+import type { RandSource } from './RandStream'
 
 /** Ruby-style modulo: result takes the sign of the divisor (always [0, m)). */
 function floorMod(n: number, m: number): number {
   return ((n % m) + m) % m
 }
 
+/** A draw position + the distribution it reads from (desktop's three random
+ *  thread-locals: seed, idx, gen_type). Carried as one unit so a forked thread /
+ *  live_loop inherits all three (EPIC #531 Phase 3 + 4). */
+export interface RandState {
+  seed: number
+  idx: number
+  source: RandSource
+}
+
 export class SPRand {
-  private readonly table: Float64Array
+  /** The ACTIVE distribution table — swapped by `setSource` (Phase 4). */
+  private table: Float64Array
   /** Desktop `:sonic_pi_spider_random_gen_seed` — an offset into the table. */
   private seed: number
   /** Desktop `:sonic_pi_spider_random_gen_idx` — draws since the last set_seed. */
   private idx: number
+  /** Desktop `:sonic_pi_spider_random_gen_type` — which distribution is active. */
+  private source: RandSource = 'white'
+  /**
+   * All distribution tables, for `use_random_source` switching (Phase 4). When
+   * absent (single-table unit tests) source switching throws. The white table is
+   * always the constructor's `table`.
+   */
+  private readonly sources?: Partial<Record<RandSource, Float64Array>>
 
-  constructor(table: Float64Array, seed = 0) {
+  constructor(table: Float64Array, seed = 0, sources?: Partial<Record<RandSource, Float64Array>>) {
     this.table = table
     this.seed = seed
     this.idx = 0
+    this.sources = sources
   }
 
   /**
@@ -148,6 +168,30 @@ export class SPRand {
   }
 
   /**
+   * `use_random_source src` / `set_random_number_distribution!` (EPIC #531
+   * Phase 4, sprand_core.rb:147 + random_numbers:151). Swaps WHICH frozen table
+   * the stream indexes. CRITICAL: it does NOT touch seed/idx — the draw position
+   * is shared across all distributions (desktop `test_rand_type`: switching to
+   * white mid-stream reads white at the CURRENT idx, not idx 0). Throws if the
+   * source's table was never loaded (no silent fall-back to white).
+   */
+  setSource(source: RandSource): void {
+    const t = this.sources?.[source]
+    if (!t) {
+      throw new Error(
+        `rand source '${source}' not loaded — use_random_source needs its distribution table`,
+      )
+    }
+    this.source = source
+    this.table = t
+  }
+
+  /** `current_random_source` — the active distribution (desktop default `:white`). */
+  getSource(): RandSource {
+    return this.source
+  }
+
+  /**
    * Derive a forked child thread's seed (EPIC #531 Phase 3). Desktop forks every
    * spider thread (live_loop / in_thread / at) with its OWN deterministic stream
    * derived from the PARENT's stream at spawn (runtime.rb:1062-1067):
@@ -193,21 +237,26 @@ export class SPRand {
     return this.randPeek(1)
   }
 
-  /** Snapshot `(seed, idx)` for save/restore (`with_random_seed`). */
-  getState(): { seed: number; idx: number } {
-    return { seed: this.seed, idx: this.idx }
+  /** Snapshot `(seed, idx, source)` for save/restore (`with_random_seed`,
+   *  per-loop persistence, fork inheritance). Carries the distribution too so a
+   *  restored / inherited stream reads the right table (Phase 4). */
+  getState(): RandState {
+    return { seed: this.seed, idx: this.idx, source: this.source }
   }
 
-  /** Restore a `(seed, idx)` snapshot. */
-  setState(state: { seed: number; idx: number }): void {
+  /** Restore a `(seed, idx[, source])` snapshot. A provided source switches the
+   *  active table (must be loaded); omitting it keeps the current distribution. */
+  setState(state: { seed: number; idx: number; source?: RandSource }): void {
     this.seed = state.seed
     this.idx = state.idx
+    if (state.source !== undefined && state.source !== this.source) this.setSource(state.source)
   }
 
-  /** Clone state (shares the immutable table). */
+  /** Clone state (shares the immutable tables). */
   clone(): SPRand {
-    const r = new SPRand(this.table, this.seed)
+    const r = new SPRand(this.table, this.seed, this.sources)
     r.idx = this.idx
+    r.source = this.source
     return r
   }
 }

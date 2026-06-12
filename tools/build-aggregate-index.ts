@@ -92,7 +92,8 @@ function pitchCard(title: string, count: number, viewer: string, m: PitchManifes
     </a>`
   }
   const c = m.counts
-  // PRNG-free actionable divergences are the launch-relevant number.
+  // Real divergences (PRNG included post-EPIC-#531, graded by event-parity) are the
+  // launch-relevant number.
   const chips = [
     chip('MATCH', c.match, 'pass'),
     chip('EVENT-MATCH', c.eventMatch ?? 0, 'pass'), // SV61 tiebreaker pass (#377/#378)
@@ -111,7 +112,7 @@ function pitchCard(title: string, count: number, viewer: string, m: PitchManifes
     <div class="scheme tier1">Tier-1 pitch parity · the verdict (SV46)</div>
     <div class="chips">${chips}</div>
     <div class="pool-foot">
-      <span><b>${c.prngFreeReal}</b> PRNG-free real divergence${c.prngFreeReal === 1 ? '' : 's'} · ${c.prng} PRNG-driven · ${c.heavy} heavy-tool-fail</span>
+      <span><b>${c.prngFreeReal}</b> real divergence${c.prngFreeReal === 1 ? '' : 's'} · ${c.prng} PRNG-driven (graded by event-parity, SV69) · ${c.heavy} heavy-tool-fail</span>
       <span class="stamp">${esc(stamp)}</span>
     </div>
   </a>`
@@ -154,8 +155,8 @@ function eventDiffCard(m: EventDiffManifest | null): string {
   }
   const c = m.counts
   const chips = [
-    chip('STRUCTURE-MATCH', c.match, 'pass'),
-    chip('STRUCTURE-DIVERGE', c.diverge, 'fail'),
+    chip('EVENT-MATCH', c.match, 'pass'),
+    chip('DIVERGE', c.diverge, 'fail'),
     chip('EMPTY', c.empty, 'incon'),
   ].filter(Boolean).join('')
   const stamp = m.generatedAt ? new Date(m.generatedAt).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : ''
@@ -164,7 +165,7 @@ function eventDiffCard(m: EventDiffManifest | null): string {
     <div class="scheme tierE">event-level structure · /s_new count · order · onset (no audio) · #446</div>
     <div class="chips">${chips}</div>
     <div class="pool-foot">
-      <span>desktop via scsynth <code>/dumpOSC</code> · web via OSC trace · PRNG values not diffed (SV49)</span>
+      <span>desktop via scsynth <code>/dumpOSC</code> · web via OSC trace · structure + onset + per-tick notes diffed (PRNG values now match desktop, SV69)</span>
       <span class="stamp">${esc(stamp)}</span>
     </div>
   </a>`
@@ -188,7 +189,7 @@ function gateHero(g: GateManifest | null): string {
     `<div class="grow ${r.pass ? 'p' : 'f'}"><span>${r.pass ? '✓' : '✗'}</span><code>${esc(r.example)}</code><em>${esc(r.gateVerdict)} · ${esc(r.gradedVia)}</em></div>`
   ).join('')
   const excl = g.exclusions?.length
-    ? `<div class="gate-excl">excluded: ${g.exclusions.map(e => esc(e.example)).join(', ')} (PRNG non-goal SV49)</div>` : ''
+    ? `<div class="gate-excl">excluded (heavy/uncapturable): ${g.exclusions.map(e => esc(e.example)).join(', ')}</div>` : ''
   // Second criterion (#469): differential matrix. Optional — absent in pre-#469 manifests.
   const dm = g.differentialMatrix
   const matrixBadge = dm
@@ -332,7 +333,7 @@ ${navBlock('desktop ↔ web parity · #446 event diff')}
   </div>
 
   <div class="caveat">
-    <b>Why two schemes?</b> Official + book are graded on <b>Tier-1 pitch</b> (note progression, the verdict — a MATCH means the right notes at the right time). E2E + community are graded on a <b>consistency score</b> (RMS/peak ratio + mel-L2 + MFCC = timbre &amp; level), which per the project's 6-Tier standard is <b>blind to wrong melody</b> and can never stand as a musical-correctness verdict. A HIGH there means "sounds tonally/loudness-similar to desktop", not "plays the right notes". MFCC is further confounded by the known ~0.5× web gain (#268) + reverb tail. PRNG-driven divergence is a declared v1 non-goal (SV49) and is classified, not counted as a defect.
+    <b>Why two schemes?</b> Official + book are graded on <b>Tier-1 pitch</b> (note progression, the verdict — a MATCH means the right notes at the right time). E2E + community are graded on a <b>consistency score</b> (RMS/peak ratio + mel-L2 + MFCC = timbre &amp; level), which per the project's 6-Tier standard is <b>blind to wrong melody</b> and can never stand as a musical-correctness verdict. A HIGH there means "sounds tonally/loudness-similar to desktop", not "plays the right notes". MFCC is further confounded by the known ~0.5× web gain (#268) + reverb tail. PRNG-driven pieces are now graded by <code>/s_new</code> event-parity (EPIC #531 — the engine's random walk matches desktop's frozen rand-stream note-for-note, SV69, superseding the old SV49 non-goal); a PRNG divergence is a real divergence, tracked in #537.
   </div>
 
   <div class="links">

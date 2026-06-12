@@ -2,9 +2,9 @@
   "generatedFrom": "examples-sweep.json + tools/gate-reproducers/manifest.json + test_results/diff-matrix.json",
   "passed": true,
   "roster": {
-    "denominator": 7,
-    "passCount": 7,
-    "pct": 100,
+    "denominator": 32,
+    "passCount": 27,
+    "pct": 84.4,
     "thresholdPct": 70,
     "passed": true
   },
@@ -28,11 +28,51 @@
     "diverged": [],
     "note": "52/52 cells structure-match · 0 diverge/timing/empty/error."
   },
-  "denominator": 7,
-  "passCount": 7,
-  "pct": 100,
+  "denominator": 32,
+  "passCount": 27,
+  "pct": 84.4,
   "thresholdPct": 70,
   "rows": [
+    {
+      "example": "blockgame",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "cloud_beat",
+      "rawVerdict": "diverge",
+      "gateVerdict": "diverge",
+      "pass": false,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "sonic_dreams",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "haunted",
+      "rawVerdict": "match",
+      "gateVerdict": "match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "ambient_experiment",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
     {
       "example": "chord_inversions",
       "rawVerdict": "event-match",
@@ -42,12 +82,52 @@
       "detail": "tools/gate-reproducers/chord_inversions.rb → compare_2026-05-29T16-00-01-355Z_chord_inversions.md"
     },
     {
+      "example": "filtered_dnb",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "fm_noise",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "jungle",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "ocean",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
       "example": "reich_phase",
       "rawVerdict": "event-match",
       "gateVerdict": "match",
       "pass": true,
       "gradedVia": "projection",
       "detail": "tools/gate-reproducers/reich_phase.rb → compare_2026-06-01T07-49-58-016Z_reich_phase_proj.md"
+    },
+    {
+      "example": "crushed",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
     },
     {
       "example": "dark_neon",
@@ -59,11 +139,83 @@
     },
     {
       "example": "mod_303_phade",
-      "rawVerdict": "match",
+      "rawVerdict": "diverge",
       "gateVerdict": "match",
       "pass": true,
       "gradedVia": "raw-refreshed",
       "detail": "re-measured → compare_2026-05-30T19-32-34-562Z_mod_303_phade.md"
+    },
+    {
+      "example": "orchard_improv",
+      "rawVerdict": "diverge",
+      "gateVerdict": "diverge",
+      "pass": false,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "syncer",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "acid",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "ambient",
+      "rawVerdict": "diverge",
+      "gateVerdict": "diverge",
+      "pass": false,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "compus_beats",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "echo_drama",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "idm_breakbeat",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "tron_bike",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "wob_rhyth",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
     },
     {
       "example": "bach",
@@ -82,19 +234,61 @@
       "detail": "tools/gate-reproducers/driving_pulse.rb → compare_2026-06-01T07-48-15-226Z_driving_pulse_proj.md"
     },
     {
+      "example": "lorezzed",
+      "rawVerdict": "diverge",
+      "gateVerdict": "diverge",
+      "pass": false,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
       "example": "monday_blues",
       "rawVerdict": "event-match",
       "gateVerdict": "match",
       "pass": true,
       "gradedVia": "projection",
       "detail": "tools/gate-reproducers/monday_blues.rb → compare_2026-05-29T15-58-36-335Z_monday_blues.md · requires #409 note(octave:) fix (MERGED 8f38e2c) — without it web played +24 semitones; the projection itself surfaced this engine bug, SP106"
+    },
+    {
+      "example": "rerezzed",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "square_skit",
+      "rawVerdict": "diverge",
+      "gateVerdict": "diverge",
+      "pass": false,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "blip_rhythm",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "tilburg_2",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
+    },
+    {
+      "example": "time_machine",
+      "rawVerdict": "event-match",
+      "gateVerdict": "event-match",
+      "pass": true,
+      "gradedVia": "raw-sweep",
+      "detail": ""
     }
   ],
-  "exclusions": [
-    {
-      "example": "ambient_experiment",
-      "reason": "Uses choose([:D4,:E4]) etc. — PRNG-driven. Cross-engine PRNG parity is a declared v1 NON-GOAL (SV49), so it is excluded from the PRNG-free gate denominator (it belongs with the other ~22 PRNG rows). The post-SP104 framing wrongly counted it in the denom.",
-      "classifier": "examples-sweep.json prng=true"
-    }
-  ]
+  "exclusions": []
 }

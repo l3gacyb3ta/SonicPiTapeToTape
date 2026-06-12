@@ -69,6 +69,21 @@ const FOO_SEED0 = [
 // Second sibling live_loop (gen_idx 1) — a DIFFERENT derived stream.
 const BAR_SEED0_FIRST = '0.957244873046875'
 
+// #536: DEFAULT run (NO use_random_seed) is NOT the same as use_random_seed 0.
+// Desktop seeds the main user thread one derivation below boot:
+// S_main = deriveChild(0,0) = 330776 (job_in_thread, runtime.rb:954), and the
+// first live_loop forks deriveChild(S_main, gen_idx=1). These values are the
+// EXACT desktop default-run loop stream, captured live via dumpOSC `amp: rand`
+// (0.87973, 0.685364, 0.755707, 0.695923, 0.306 …). use_random_seed resets the
+// spawn counter, so seed0's loop is deriveChild(0,0)=FOO_SEED0 — a different stream.
+const FOO_DEFAULT = [
+  '0.879730224609375',
+  '0.68536376953125',
+  '0.755706787109375',
+  '0.6959228515625',
+  '0.305999755859375',
+]
+
 describe('EPIC #531 Phase 3 — live_loop rand respects use_random_seed (E2E pipeline)', () => {
   it('a live_loop rand stream matches desktop after use_random_seed 0', async () => {
     const printed = await runAndCapture(`use_random_seed 0
@@ -110,13 +125,20 @@ end`, 4)
     expect(bar[0]).not.toBe(foo[0]) // siblings diverge
   })
 
-  it('no use_random_seed defaults to seed 0 (desktop default)', async () => {
+  it('#536: no use_random_seed → DEFAULT main-thread derivation (NOT seed 0)', async () => {
+    // Desktop default run ≠ use_random_seed 0. The first live_loop forks
+    // deriveChild(S_main, gen_idx=1), S_main being the once-derived main thread
+    // (job_in_thread). Grounded against the LIVE desktop default-run stream
+    // (dumpOSC amp:rand). Before #536 our engine wrongly produced FOO_SEED0 here
+    // (deriveChild(0,0)) — the masked-by-explicit-seed bug.
     const printed = await runAndCapture(`live_loop :foo do
   puts rand
   sleep 1
 end`)
     const nums = printed.filter((m) => /^[0-9.]/.test(m))
-    expect(nums.slice(0, FOO_SEED0.length)).toEqual(FOO_SEED0)
+    expect(nums.slice(0, FOO_DEFAULT.length)).toEqual(FOO_DEFAULT)
+    // And it is DISTINCT from the use_random_seed 0 stream (regression guard).
+    expect(nums[0]).not.toBe(FOO_SEED0[0])
   })
 
   it('re-running re-derives the SAME stream (deterministic across Runs)', async () => {
