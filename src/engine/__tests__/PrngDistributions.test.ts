@@ -110,6 +110,14 @@ describe('EPIC #531 Phase 4 — ProgramBuilder use/with/current_random_source', 
     expect(warnings.some((w) => w.includes('invalid noise type'))).toBe(true)
   })
 
+  it('with_random_seed restores (seed, idx) but NOT the distribution (desktop set_seed!)', () => {
+    const b = new ProgramBuilder()
+    b.with_random_seed(0, (bb) => {
+      bb.use_random_source('perlin') // a source change inside the block...
+    })
+    expect(b.current_random_source()).toBe('perlin') // ...persists after (gen_type untouched by set_seed!)
+  })
+
   it('with_random_source restores the previous source, idx keeps advancing', () => {
     const b = new ProgramBuilder()
     b.use_random_source('perlin')

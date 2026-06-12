@@ -1325,12 +1325,16 @@ export class ProgramBuilder {
     return this
   }
 
-  /** Run block with a specific random seed, then restore. */
+  /** Run block with a specific random seed, then restore (seed, idx) ONLY.
+   *  Desktop's with_random_seed saves/restores via set_seed! which touches seed +
+   *  idx but NOT the distribution (gen_type) — a use_random_source inside the
+   *  block persists after it (core.rb:3463). So we restore seed+idx, leaving any
+   *  source change intact (Phase 4). */
   with_random_seed(seed: number, buildFn: (b: ProgramBuilder) => void): this {
-    const prevState = this.rng.getState()
+    const { seed: prevSeed, idx: prevIdx } = this.rng.getState()
     this.rng.reset(seed)
     buildFn(this)
-    this.rng.setState(prevState)
+    this.rng.setState({ seed: prevSeed, idx: prevIdx })
     return this
   }
 
