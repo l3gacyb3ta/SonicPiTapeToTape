@@ -1155,6 +1155,25 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
   const bareCode: any[] = []
   const blocks: any[] = []
 
+  // #537/SV55: `use_random_seed` / `use_random_source` are FLOW-SENSITIVE — their
+  // effect begins at their SOURCE POSITION (desktop SPRand set_seed!). Hoisting
+  // them above the bare-code wrapper (TOP_LEVEL_SETTINGS) is ONLY needed so a
+  // separately-registered loop (live_loop / in_thread / bare `loop` / with_fx-
+  // wrapping-loop) reads the seed from the engine at registration. When the
+  // program registers NO such loop, the hoist is purely wrong: a `use_random_seed`
+  // near the end (dice_hoist, e2e_06) would re-seed the WHOLE bare sequence from
+  // its top instead of only the draws that follow it. Detect the no-loop case and
+  // keep these settings INLINE in bareCode (emitted as `__b.use_random_seed`).
+  const registersLoop = children.some((c: any) => {
+    if (c.type !== 'call' && c.type !== 'method_call') return false
+    const m = c.childForFieldName('method')?.text ?? c.namedChildren[0]?.text
+    if (m === 'live_loop' || m === 'in_thread') return true
+    if (m === 'loop' && c.namedChildren.some((x: any) => x.type === 'do_block' || x.type === 'block')) return true
+    if (m === 'with_fx' && /\b(?:live_loop|loop)\b/.test(c.text ?? '')) return true
+    return false
+  })
+  const FLOW_SENSITIVE_RANDOM = new Set(['use_random_seed', 'use_random_source'])
+
   // #419/SV55: track the top-level `use_synth` in SOURCE ORDER so each block
   // inherits the synth in effect at its definition point (desktop fork-snapshot
   // parity, runtime.rb:1067). `blockSynth` tags each registration-capturing
@@ -1223,7 +1242,8 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
     const isBareLoopNode = method === 'loop' &&
       child.namedChildren.some((c: any) => c.type === 'do_block' || c.type === 'block')
 
-    if (method && TOP_LEVEL_SETTINGS.has(method)) {
+    if (method && TOP_LEVEL_SETTINGS.has(method)
+        && !(FLOW_SENSITIVE_RANDOM.has(method) && !registersLoop)) {
       topLevel.push(child)
     // `comment` and `uncomment` are control-flow (like if-true/if-false), NOT
     // structural blocks. They stay in bareCode so their content gets the __b.
@@ -2919,31 +2939,38 @@ function transpileSynthCommand(argsNode: any, ctx: TranspileContext): string {
 // Control flow transpilers
 // ---------------------------------------------------------------------------
 
+// `if` and `elsif` nodes share the shape [condition, then-body?, (elsif|else)?].
+// tree-sitter-ruby NESTS the trailing `elsif`/`else` INSIDE the preceding
+// `elsif` node, so the chain must be walked recursively. A flat loop over the
+// top `if`'s children only ever reaches the FIRST `elsif` and silently drops
+// everything after it (a 2nd `elsif`, or the final `else`) — losing both
+// audible events AND random draws (desyncing the PRNG stream from desktop). #537.
 function transpileIf(node: any, ctx: TranspileContext): string {
   const children = node.namedChildren
   const condition = children[0]
-  const consequence = children[1]
 
   let result = `if (${transpileNode(condition, ctx)}) {\n`
-  if (consequence) result += transpileNode(consequence, ctx) + '\n'
-  result += ctx.indent + '}'
-
-  // Handle elsif/else
-  for (let i = 2; i < children.length; i++) {
+  let tail = ''
+  for (let i = 1; i < children.length; i++) {
     const child = children[i]
     if (child.type === 'elsif') {
-      const elsifCond = child.namedChildren[0]
-      const elsifBody = child.namedChildren[1]
-      result += ` else if (${transpileNode(elsifCond, ctx)}) {\n`
-      if (elsifBody) result += transpileNode(elsifBody, ctx) + '\n'
-      result += ctx.indent + '}'
+      // Recurse: the elsif carries its own then-body AND the rest of the chain.
+      tail += ` else ${transpileIf(child, ctx)}`
     } else if (child.type === 'else') {
-      const elseBody = child.namedChildren[0]
-      result += ` else {\n`
-      if (elseBody) result += transpileNode(elseBody, ctx) + '\n'
-      result += ctx.indent + '}'
+      tail += ` else {\n`
+      // The `else` node is a wrapper containing ALL its statements directly
+      // (unlike the consequence, which is `then`-wrapped). Grab every child,
+      // not just the first — `namedChildren[0]` dropped all but the first stmt.
+      const elseBody = transpileChildren(child, ctx)
+      if (elseBody) tail += elseBody + '\n'
+      tail += ctx.indent + '}'
+    } else {
+      // The consequence — a `then` wrapper (or, rarely, a bare body node).
+      const body = transpileNode(child, ctx)
+      if (body) result += body + '\n'
     }
   }
+  result += ctx.indent + '}' + tail
 
   return result
 }
@@ -2959,9 +2986,14 @@ function transpileUnless(node: any, ctx: TranspileContext): string {
   for (let i = 2; i < node.namedChildren.length; i++) {
     const child = node.namedChildren[i]
     if (child.type === 'else') {
-      const elseBody = child.namedChildren[0]
       result += ` else {\n`
-      if (elseBody) result += transpileNode(elseBody, ctx) + '\n'
+      // The `else` node is a wrapper containing ALL its statements directly
+      // (unlike the consequence/elsif, whose bodies are `then`-wrapped). Grab
+      // every child, not just the first — `namedChildren[0]` silently dropped
+      // every statement after the first, losing both audible events AND random
+      // draws (desyncing the PRNG stream from desktop). #537.
+      const elseBody = transpileChildren(child, ctx)
+      if (elseBody) result += elseBody + '\n'
       result += ctx.indent + '}'
     }
   }
@@ -3018,9 +3050,14 @@ function transpileCase(node: any, ctx: TranspileContext): string {
       if (bodyNode) result += transpileNode(bodyNode, ctx) + '\n'
       result += ctx.indent + '}'
     } else if (child.type === 'else') {
-      const elseBody = child.namedChildren[0]
       result += ` else {\n`
-      if (elseBody) result += transpileNode(elseBody, ctx) + '\n'
+      // The `else` node is a wrapper containing ALL its statements directly
+      // (unlike the consequence/elsif, whose bodies are `then`-wrapped). Grab
+      // every child, not just the first — `namedChildren[0]` silently dropped
+      // every statement after the first, losing both audible events AND random
+      // draws (desyncing the PRNG stream from desktop). #537.
+      const elseBody = transpileChildren(child, ctx)
+      if (elseBody) result += elseBody + '\n'
       result += ctx.indent + '}'
     }
   }
