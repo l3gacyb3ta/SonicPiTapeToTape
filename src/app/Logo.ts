@@ -13,13 +13,13 @@ export function createLogo(): HTMLElement {
     user-select: none;
   `
   const icon = document.createElement('span')
-  icon.textContent = '♫'
+  icon.textContent = '📼'
   icon.style.cssText = `
     font-size: 1.3rem; color: ${theme.accent};
     text-shadow: 0 0 12px ${theme.accentHover};
   `
   const text = document.createElement('span')
-  text.textContent = 'Sonic Pi Web'
+  text.textContent = 'Tape To Tape'
   text.style.cssText = `
     font-weight: 700; font-size: 0.95rem; color: ${theme.fg};
     letter-spacing: 0.5px;

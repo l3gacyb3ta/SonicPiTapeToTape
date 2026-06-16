@@ -22,124 +22,24 @@ import { theme } from './theme'
 import { track, EVENTS, errorClass, detectBrowserFamily } from './Analytics'
 
 // Welcome buffer — "Solar Flare" (progressive trance) is the default piece
-const WELCOME_CODE = `#
-#  Press Run (Ctrl+Enter or Alt+R) to hear this piece.
+const WELCOME_CODE = `# Welcome to TAPE TO TAPE
+#
+#  Press Run (Ctrl+Enter or Alt+R) to hear your code.
 #  Press Stop (Esc or Alt+S) to silence everything.
 #  Edit the code while it plays — changes apply instantly!
-#
-#  github.com/MrityunjayBhardwaj/SonicPi.js
-#  Also checkout Sonic Tau: https://sonic-pi.net/tau/
-#
+#  To Record your performance, click the Record button (or Alt+R twice).
+#  Once you're done, click Record again to stop and download a WAV file!
+#  Don't forget to record in Lapse and share your code in a repo.
+# 
 #  Standing on the shoulders of giants:
-#    Sonic Pi & Sam Aaron  — sonic-pi.net
+#    Sonic Pi & Sam Aaron   — sonic-pi.net
 #    SuperCollider          — supercollider.github.io
 #    Sonic Pi community     — in-thread.sonic-pi.net
+#    Sonic Pi Web           — github.com/MrityunjayBhardwaj/SonicPiWeb/tree/main
 #
-# "Solar Flare" — Progressive Trance
-# Inspired by the Sonic Pi community
-# Technique: line() filter sweeps, building arpeggios, layered pads
-
-use_bpm 138
-
-live_loop :director do
-  set :section, 0  # intro: kick + rising filter arp
-  sleep 32
-  set :section, 1  # build: pads enter, arp intensifies
-  sleep 32
-  set :section, 2  # drop: full euphoric chords + bass
-  sleep 64
-  set :section, 3  # breakdown: pad solo, no drums
-  sleep 16
-  set :section, 4  # climax: everything, peak energy
-  sleep 48
-  stop
-end
-
-live_loop :kick do
-  s = get[:section]
-  vol = 0
-  vol = 1.5 if s == 0 or s == 1
-  vol = 2.0 if s == 2 or s == 4
-  sample :bd_haus, amp: vol
-  sleep 1
-end
-
-live_loop :offbeat_hat do
-  s = get[:section]
-  vol = 0
-  vol = 0.4 if s == 0 or s == 1
-  vol = 0.6 if s == 2 or s == 4
-  sleep 0.5
-  sample :drum_cymbal_closed, amp: vol
-  sleep 0.5
-end
-
-live_loop :clap do
-  s = get[:section]
-  vol = 0
-  vol = 0.8 if s == 1
-  vol = 1.2 if s == 2 or s == 4
-  sleep 1
-  sample :sn_dub, amp: vol
-  sleep 1
-end
-
-live_loop :arp do
-  s = get[:section]
-  use_synth :saw
-  vol = 0
-  vol = 0.2 if s == 0
-  vol = 0.3 if s == 1
-  vol = 0.4 if s == 2 or s == 4
-  vol = 0.15 if s == 3
-  co = 70
-  co = 90 if s == 1
-  co = 110 if s >= 2
-  notes = scale(:a3, :minor_pentatonic, num_octaves: 2)
-  with_fx :echo, phase: 0.25, decay: 4, mix: 0.4 do
-    play notes.tick, release: 0.15, amp: vol, cutoff: co
-    sleep 0.125
-  end
-end
-
-live_loop :pad do
-  s = get[:section]
-  use_synth :prophet
-  vol = 0
-  vol = 0.3 if s == 1
-  vol = 0.5 if s == 2
-  vol = 0.6 if s == 3
-  vol = 0.5 if s == 4
-  chords = [chord(:a3, :minor), chord(:f3, :major),
-            chord(:c4, :major), chord(:g3, :major)]
-  with_fx :reverb, room: 0.8, mix: 0.5 do
-    play chords.tick, attack: 1, release: 6, amp: vol, cutoff: 90
-    sleep 4
-  end
-end
-
-live_loop :bass do
-  s = get[:section]
-  use_synth :sine
-  vol = 0
-  vol = 0.6 if s == 2
-  vol = 0.8 if s == 4
-  notes = ring(:a1, :a1, :f1, :f1, :c2, :c2, :g1, :g1)
-  play notes.tick, release: 0.4, amp: vol
-  sleep 0.5
-end
-
-live_loop :riser do
-  s = get[:section]
-  use_synth :cnoise
-  vol = 0
-  vol = 0.06 if s == 1
-  vol = 0.08 if s == 3
-  with_fx :hpf, cutoff: rrand(70, 100) do
-    play :c4, release: 4, amp: vol
-  end
-  sleep 4
-end`
+#  Don't know what to do? Check out the tutorial and examples! https://sonic-pi.net/tutorial.html
+use_bpm 120
+`
 
 // Welcome log — credits and shortcuts
 const WELCOME_LOG = [
@@ -370,6 +270,7 @@ export class App {
     this.editor.onZen(() => this.toggleZen())
     this.editor.onCursorWord((word) => this.helpPanel.updateWord(word))
     this.helpPanel.getCurrentWord = () => this.editor.getCurrentWord()
+    this.helpPanel.show()
 
     // Show buffer content indicators
     this.updateBufferIndicators()

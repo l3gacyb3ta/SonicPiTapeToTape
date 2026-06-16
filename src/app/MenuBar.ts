@@ -747,7 +747,7 @@ export class MenuBar {
   private openBugReport(): void {
     const data = this.getReportData?.()
     const browser = navigator.userAgent
-    const url = new URL('https://github.com/MrityunjayBhardwaj/SonicPi.js/issues/new')
+    const url = new URL('https://github.com/l3gacyb3ta/SonicPiTapeToTape/issues/new')
     url.searchParams.set('template', 'bug_report.yml')
     url.searchParams.set('labels', 'bug,reported-via-app,needs-triage')
 

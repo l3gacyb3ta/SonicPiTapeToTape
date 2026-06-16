@@ -417,7 +417,7 @@ export class Toolbar {
       padding: 0.3rem 0.75rem;
       min-height: 2.2rem;
       border: none;
-      border-radius: 5px;
+      border-radius: 1px;
       background: ${colors.bg};
       color: ${theme.fg};
       font-family: inherit;

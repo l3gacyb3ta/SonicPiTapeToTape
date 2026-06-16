@@ -1,12 +1,14 @@
 /**
- * Tokyo Night palette — single source of truth for UI chrome colors.
- * Based on https://github.com/tokyo-night/tokyo-night-vscode-theme
+ * Theme — single source of truth for UI chrome colors.
  *
+ * Switch between dark (Tokyo Night) and light (Day) by changing `theme` below.
  * Editor syntax highlighting lives in Editor.ts and uses the Desktop
  * Sonic Pi palette for parity with the canonical IDE — do not unify.
  */
 
-export const theme = {
+const darkTheme = {
+  isDark: true as const,
+
   // Backgrounds
   bg:          '#1a1b26',
   bgDark:      '#16161e',
@@ -55,4 +57,57 @@ export const theme = {
   shadowStrong: 'rgba(0,0,0,0.6)',
 } as const
 
-export type Theme = typeof theme
+const lightTheme = {
+  isDark: false as const,
+
+  // Backgrounds
+  bg:          '#f5f5f7',
+  bgDark:      '#ebebed',
+  bgDarker:    '#dcdcdf',
+  bgHighlight: '#e0e0e8',
+  bgPanel:     '#f0f0f3',
+  bgAlt:       '#e8e8ec',
+
+  // Foregrounds
+  fg:        '#1a1b26',
+  fgDark:    '#2d2e3f',
+  fgMuted:   '#4a4b60',
+  comment:   '#7a7b95',
+  fgFaint:   '#a0a1b5',
+
+  // Borders (translucent so they layer cleanly on any bg)
+  border:      'rgba(30,31,50,0.10)',
+  borderHover: 'rgba(30,31,50,0.20)',
+  borderStrong:'rgba(30,31,50,0.32)',
+
+  // Accent (brand) — Desktop Sonic Pi deeppink
+  accent:       '#d6007a',
+  accentMuted:  'rgba(214,0,122,0.12)',
+  accentHover:  'rgba(214,0,122,0.22)',
+  accentDrag:   'rgba(214,0,122,0.40)',
+  accentFaint:  'rgba(214,0,122,0.06)',
+
+  // Semantic colors
+  blue:   '#2563eb',
+  cyan:   '#0891b2',
+  purple: '#7c3aed',
+  magenta:'#c2410c',
+  green:  '#16a34a',
+  red:    '#dc2626',
+  orange: '#d97706',
+  yellow: '#b45309',
+
+  // Status-specific shortcuts
+  success: '#16a34a',
+  warning: '#d97706',
+  error:   '#dc2626',
+  info:    '#2563eb',
+
+  // Shadow (used for tooltips/popups)
+  shadow: 'rgba(0,0,0,0.12)',
+  shadowStrong: 'rgba(0,0,0,0.22)',
+} as const
+
+export const theme = lightTheme
+
+export type Theme = typeof darkTheme
