@@ -374,35 +374,39 @@ for (const examplePath of EXAMPLES) {
   // for manifest back-compat; it now means "real divergences", PRNG included.)
   if (row.verdict === 'diverge') row.prngFreeReal = true
 
-  // Copy artifacts into test_results/examples-sweep/<slug>/
+  // Copy artifacts into test_results/<rosterDir>/<slug>/. Manifest paths MUST use
+  // ROSTER.outDirName, NOT a hardcoded 'examples-sweep' — otherwise a non-official
+  // roster (e.g. book-examples-sweep) copies artifacts to the right dir but links
+  // them under examples-sweep/, so every <img>/<a> 404s (spectrograms vanish).
+  const rosterDir = ROSTER.outDirName
   const slugDir = resolve(OUT_DIR, slug)
   // Snippet (always — straight from EXAMPLES_DIR)
   const snippetDest = join(slugDir, 'snippet.rb')
   copyArtifact(examplePath, snippetDest)
-  row.artifacts.snippet = `examples-sweep/${slug}/snippet.rb`
+  row.artifacts.snippet = `${rosterDir}/${slug}/snippet.rb`
 
   if (parsed.artifacts?.desktopWav) {
     const dest = join(slugDir, 'desktop.wav')
     if (copyArtifact(parsed.artifacts.desktopWav, dest)) {
-      row.artifacts.desktopWav = `examples-sweep/${slug}/desktop.wav`
+      row.artifacts.desktopWav = `${rosterDir}/${slug}/desktop.wav`
     }
   }
   if (parsed.artifacts?.webWav) {
     const dest = join(slugDir, 'web.wav')
     if (copyArtifact(parsed.artifacts.webWav, dest)) {
-      row.artifacts.webWav = `examples-sweep/${slug}/web.wav`
+      row.artifacts.webWav = `${rosterDir}/${slug}/web.wav`
     }
   }
   if (parsed.artifacts?.spectrogramPng) {
     const dest = join(slugDir, 'spectrogram.png')
     if (copyArtifact(parsed.artifacts.spectrogramPng, dest)) {
-      row.artifacts.spectrogramPng = `examples-sweep/${slug}/spectrogram.png`
+      row.artifacts.spectrogramPng = `${rosterDir}/${slug}/spectrogram.png`
     }
   }
   if (parsed.artifacts?.report) {
     const dest = join(slugDir, 'report.md')
     if (copyArtifact(parsed.artifacts.report, dest)) {
-      row.artifacts.report = `examples-sweep/${slug}/report.md`
+      row.artifacts.report = `${rosterDir}/${slug}/report.md`
     }
   }
 
