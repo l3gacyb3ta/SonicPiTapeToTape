@@ -303,7 +303,7 @@
         entries: [],
         filtered: [],
         selectedSlug: null,
-        verdicts: { match: true, 'prng-variant': true, diverge: true, invalid: true, inconcl: true },
+        verdicts: { match: true, 'event-match': true, 'prng-variant': true, diverge: true, invalid: true, inconcl: true },
         showPrng: true,
         showReal: true,
         search: '',
@@ -409,7 +409,7 @@
           if (!state.showReal && e.prngFreeReal) return false;
           return true;
         });
-        const order = { match: 0, 'prng-variant': 1, diverge: 2, inconcl: 3, invalid: 4 };
+        const order = { match: 0, 'event-match': 1, 'prng-variant': 2, diverge: 3, inconcl: 4, invalid: 5 };
         switch (state.sort) {
           case 'verdict':
             list.sort((a, b) => order[a.verdict] - order[b.verdict] || a.n - b.n);
