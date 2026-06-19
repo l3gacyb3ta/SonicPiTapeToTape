@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-18T16:51:28.172184+00:00",
+  "generatedAt": "2026-06-19T06:37:17.179004+00:00",
   "pool": "community",
   "scheme": "consistency-score",
   "schemeNote": "Tier-2/3 timbre+level (HIGH/MID/LOW/INCONCLUSIVE) \u2014 NOT Tier-1 pitch; blind to wrong melody per SV46.",
@@ -33,25 +33,25 @@
       "name": "community__02_shufflit",
       "parent": "community",
       "base": "02_shufflit",
-      "verdict": "MID",
-      "score": 73.73875270365585,
+      "verdict": "HIGH",
+      "score": 73.6603036679941,
       "captured": true,
-      "rms_ratio": 1.064211050273768,
-      "peak_ratio": 0.9044,
-      "mfcc_distance": 212.7946014404297,
-      "l2_mel_db": 21.97916603088379
+      "rms_ratio": 0.6099550056242969,
+      "peak_ratio": 0.9023,
+      "mfcc_distance": 133.0962677001953,
+      "l2_mel_db": 13.123495101928711
     },
     {
       "name": "community__03_blimp_zones",
       "parent": "community",
       "base": "03_blimp_zones",
-      "verdict": "HIGH",
-      "score": 71.15319266098547,
+      "verdict": "MID",
+      "score": 60.59613211333897,
       "captured": true,
-      "rms_ratio": 1.36026936026936,
-      "peak_ratio": 1.556578442654392,
-      "mfcc_distance": 152.6982879638672,
-      "l2_mel_db": 16.2761173248291
+      "rms_ratio": 0.5795536357091433,
+      "peak_ratio": 0.5504648969141624,
+      "mfcc_distance": 185.69403076171875,
+      "l2_mel_db": 19.757993698120117
     },
     {
       "name": "community__04_blip_rhythm",
