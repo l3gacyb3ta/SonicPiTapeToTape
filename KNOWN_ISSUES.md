@@ -2,9 +2,9 @@
 
 > **This is a beta.** It runs in the browser, plays your Sonic Pi code, and gets ~85% of the way to the desktop experience. The other ~15% is what this document is about.
 >
-> **Beta means:** report bugs, expect rough edges, give us your patience. We move fast on issues that come with a clear repro. Open one at <https://github.com/MrityunjayBhardwaj/SonicPi.js/issues> — there's a "Report Bug" button in the toolbar that pre-fills the URL with your composition.
+> **Beta means:** report bugs, expect rough edges, give us your patience. We move fast on issues that come with a clear repro. Open one at <https://github.com/MrityunjayBhardwaj/SonicPiWeb/issues> — there's a "Report Bug" button in the toolbar that pre-fills the URL with your composition.
 
-Last updated: 2026-05-11. Mirrors what we know honestly today; this list grows with the project.
+Last updated: 2026-06-19. Mirrors what we know honestly today; this list grows with the project.
 
 ---
 
@@ -13,7 +13,7 @@ Last updated: 2026-05-11. Mirrors what we know honestly today; this list grows w
 | Area | Status | Notes |
 |------|--------|-------|
 | **Core scheduling** (`live_loop`, `sleep`, `cue`/`sync`, `in_thread`, hot-swap) | ✅ Works | First-of-its-kind virtual-time scheduler in JS. Per-loop audio isolation. |
-| **Synths** | 🟡 88% (62 of ~68 user-facing) | 3 fail to load upstream. 2 mic-input synths are wired (`:sound_in`, `:sound_in_stereo`). |
+| **Synths** | 🟡 95% (63 of 66) | 3 fail to load upstream. 2 mic-input synths are wired (`:sound_in`, `:sound_in_stereo`). |
 | **Samples** | ✅ 197/197 wired | Lazy-loaded on first use. |
 | **FX** | 🟡 ~75% parity | See FX matrix below. Some heavy-DSP effects diverge from desktop. |
 | **DSL functions** | 🟡 ~87% (~148 of 170) | Common DSL covered. Long tail of obscure helpers still missing. |
@@ -39,14 +39,14 @@ Legend: ✅ ready · 🟡 partial / known limitations · ❌ broken / not implem
 
 **What this means for you:** If you bring a desktop composition to the web, you may need to bump amplitudes slightly for parity, OR trust the calibration and live with whatever the web mixer produces.
 
-### 1.2 FX parity matrix (40 of 42 measured)
+### 1.2 FX parity matrix (38 wired)
 
-We classify each FX into one of four parity tiers using a combined energy-axis (RMS) + timbre-axis (MFCC distance) score against desktop Sonic Pi:
+We classify each wired FX into one of three parity tiers using a combined energy-axis (RMS) + timbre-axis (MFCC distance) score against desktop Sonic Pi:
 
 - **HIGH** (4) — `panslicer`, `slicer`, `wobble`, `tremolo` — sustained-flavor effects, audibly close to desktop.
 - **MID** (~26) — most other FX. Audibly Sonic Pi but with measurable level / timbral differences.
 - **LOW** (~8) — filter family + normaliser — divergence is audible. Includes `nlpf` (non-resonant LPF) and several others. Use them but expect they won't sound identical to desktop.
-- **INCONCLUSIVE** (2) — `delay`, `chorus` — desktop produces silence in our test bench; we can't classify until we have a desktop signal to compare against.
+- **Not wired** (2) — `delay`, `chorus` — their compiled synthdefs aren't shipped in the upstream SuperSonic WASM CDN package (#301). Use `:echo` for delay and `:flanger`/`:ring_mod` for chorus.
 
 **Composition-level impact:** Two compositions in our 10-fixture e2e suite are outliers — `02_fx_chain` (0.11× desktop level) and a separate ambient case (2.46× desktop level after fixes). Long FX chains compound per-FX deficit / boost multiplicatively.
 
@@ -148,7 +148,7 @@ If you hit something that looks like a hot-swap glitch we haven't listed, **plea
 
 For the full triage workflow — severity ladder, label scheme, what makes a bug land fast — see [`TRIAGE.md`](./TRIAGE.md).
 
-We use the project board at <https://github.com/MrityunjayBhardwaj/SonicPi.js/projects> to track active work. Bugs with clear repros usually land a fix within a few days.
+We use the project board at <https://github.com/MrityunjayBhardwaj/SonicPiWeb/projects> to track active work. Bugs with clear repros usually land a fix within a few days.
 
 ---
 

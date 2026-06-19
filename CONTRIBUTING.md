@@ -3,7 +3,7 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/MrityunjayBhardwaj/SonicPi.js
+git clone https://github.com/MrityunjayBhardwaj/SonicPiWeb
 cd SonicPi.js
 npm install
 npm run dev        # starts dev server at localhost:5173

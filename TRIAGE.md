@@ -75,7 +75,7 @@ For non-trivial bugs we write a Playwright + WAV-analysis reproducer first, then
 
 We follow [AnviDev workflow](./CLAUDE.md): one issue → one branch → one focused commit (or a small chain) → PR with `closes #N` → reviewer feedback → merge.
 
-Commits use gitmoji + a Problem/Fix body so the git log reads like a changelog. Example: see [`6df8dbe`](https://github.com/MrityunjayBhardwaj/SonicPi.js/commit/6df8dbe) (drain scsynth queue on Stop).
+Commits use gitmoji + a Problem/Fix body so the git log reads like a changelog. Example: see [`6df8dbe`](https://github.com/MrityunjayBhardwaj/SonicPiWeb/commit/6df8dbe) (drain scsynth queue on Stop).
 
 ### 4. Verify + close
 

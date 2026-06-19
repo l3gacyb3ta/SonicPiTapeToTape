@@ -6,8 +6,8 @@
   <img src="assets/sonicpi_screenshot.png" alt="Sonic Pi Web — live coding in the browser" width="100%">
 </p>
 
-[![CI](https://github.com/MrityunjayBhardwaj/SonicPi.js/actions/workflows/ci.yml/badge.svg)](https://github.com/MrityunjayBhardwaj/SonicPi.js/actions/workflows/ci.yml)
-[![Deploy](https://github.com/MrityunjayBhardwaj/SonicPi.js/actions/workflows/deploy.yml/badge.svg)](https://github.com/MrityunjayBhardwaj/SonicPi.js/actions/workflows/deploy.yml)
+[![CI](https://github.com/MrityunjayBhardwaj/SonicPiWeb/actions/workflows/ci.yml/badge.svg)](https://github.com/MrityunjayBhardwaj/SonicPiWeb/actions/workflows/ci.yml)
+[![Deploy](https://github.com/MrityunjayBhardwaj/SonicPiWeb/actions/workflows/deploy.yml/badge.svg)](https://github.com/MrityunjayBhardwaj/SonicPiWeb/actions/workflows/deploy.yml)
 [![npm beta](https://img.shields.io/npm/v/@mjayb/sonicpijs/beta?label=npm%20beta&color=orange)](https://www.npmjs.com/package/@mjayb/sonicpijs/v/beta)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -115,9 +115,9 @@ engine.play()
 
 | Feature | Details |
 |---------|---------|
-| **62 synths** (66 exposed, 3 upstream LOAD-FAIL) | beep, saw, prophet, tb303, supersaw, blade, hollow, pluck, piano, and more |
+| **63 synths** (3 upstream synthdefs missing from the WASM CDN) | beep, saw, prophet, tb303, supersaw, blade, hollow, pluck, piano, and more |
 | **197 samples** | Kicks, snares, hats, loops, ambient, bass, electronic, tabla |
-| **42 FX** | reverb, echo, distortion, flanger, slicer, wobble, chorus, pitch_shift, and more |
+| **38 FX** | reverb, echo, distortion, flanger, slicer, wobble, pitch_shift, gverb, krush, and more |
 | **~148 DSL functions** (~87% of upstream) | live_loop, with_fx, define, defonce, in_thread, sync/cue/sync_bpm, density, time_warp, use_osc/osc, run_code, with_synth_defaults, with_sample_defaults |
 | **Per-loop audio isolation** | Each `live_loop` gets its own analyser bus — first Sonic Pi implementation to ship this |
 | **Music theory** | 30+ chord types, 50+ scales, rings, spreads, Euclidean rhythms |
@@ -153,17 +153,31 @@ engine.play()
 
 ## Tech stack
 
-TypeScript, Vite, Vitest (929 tests across 29 files), CodeMirror 6, Web Audio API, WebAssembly (SuperCollider scsynth via SuperSonic).
+TypeScript, Vite, Vitest (1491 tests across 68 files), CodeMirror 6, Web Audio API, WebAssembly (SuperCollider scsynth via SuperSonic).
 
 ---
 
 ## Compatibility with Desktop Sonic Pi
 
-929 unit tests + 49 community forum compositions verified passing end-to-end in Chromium. Concretely, current coverage:
+Parity is measured **end-to-end** — not from unit tests alone, but by running each composition on both engines and comparing the result. Real desktop Sonic Pi runs the same `.rb` file over OSC; web runs it through the full pipeline (Ruby → transpile → scheduler → scsynth-WASM → audio); a launch gate then grades the two outputs.
 
-- **62/66 synths** working end-to-end (3 upstream WASM LOAD-FAIL)
+### Parity scores (latest launch gate)
+
+| Metric | Score | What it measures |
+|--------|-------|------------------|
+| **Launch gate** | ✅ **PASS** | Overall: roster pass + differential matrix green |
+| **Official roster** | **34/34 (100%)** | Non-heavy official examples, PRNG-graded by per-synthdef `/s_new` event-parity (threshold ≥70%) |
+| **Differential matrix** | **52/52 cells** | Desktop ↔ web structure-match — 0 diverge / timing / empty / error |
+| **Event-parity sweep** | **151 / 154** | Full fixture corpus: 151 EVENT-MATCH · **0 DIVERGE** · 3 non-gradeable by design |
+| **Unit tests** | **1491 / 1491** | Vitest, across 68 files (`npx vitest run`) |
+
+The 3 non-gradeable fixtures are excluded by design (a counter probe, a density isolation probe, and a deliberate web-only feature test), not failures. Regenerate the gate yourself with `npx tsx tools/gate-report.ts`; the full per-fixture breakdown lives in `test_results/launch-gate.md` and the browsable dashboards under `test_results/`.
+
+### Feature coverage
+
+- **63/66 synths** working end-to-end (3 upstream WASM LOAD-FAIL: `dark_sea_horn`, `singer`, `winwood_lead`)
 - **197/197 samples**
-- **42/42 FX** wired (4 HIGH / 26 MID / 8 LOW / 2 INCONCLUSIVE on the WAV-level parity comparator; composite parity ~89.5%)
+- **38 FX** wired end-to-end and A/B WAV-verified against desktop (`tools/fx-sweep.ts`). No FX produces silence or wrong audio — every wired FX routes signal; differences are level/spectral-shape, not engine bugs. (`delay` and `chorus` are excluded — the upstream SuperSonic WASM synthdef package doesn't ship them, [#301](https://github.com/MrityunjayBhardwaj/SonicPiWeb/issues/301).)
 - **~148/170 DSL functions** (~87% of upstream's user-facing surface)
 
 **Identical to desktop:** seeded PRNG (Mersenne Twister), synth definitions, sample library, music theory, timing semantics, hot-swap, sync/cue.
@@ -191,7 +205,7 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for permanent constraints and [
 - **Mixer:** live Pre-Amp / Amp sliders, gain staging aligned to Sonic Tau (browser-WASM safe headroom)
 - **Per-loop audio isolation** — first Sonic Pi implementation to ship this
 
-Full changelog: [Releases](https://github.com/MrityunjayBhardwaj/SonicPi.js/releases).
+Full changelog: [Releases](https://github.com/MrityunjayBhardwaj/SonicPiWeb/releases).
 
 ---
 
