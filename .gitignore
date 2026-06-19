@@ -65,3 +65,6 @@ tmp/
 # Personal learnings (not part of the project)
 LEARNINGS.md
 tests/book-examples/
+
+# Generated dashboard publish bundle (regenerated from test_results/)
+dashboard-dist/
