@@ -54,7 +54,7 @@ const TEXT_EXT = new Set(['.html', '.json', '.md'])
 
 const stats = {
   html: 0, json: 0, md: 0, copied: 0,
-  droppedWav: 0, droppedPng: 0, pngRefs: 0, wavRefs: 0,
+  droppedWav: 0, droppedPng: 0, pngRefs: 0, wavRefs: 0, codeStripped: 0,
 }
 
 function rewrite(text) {
@@ -79,18 +79,46 @@ function rewrite(text) {
   const wavRelRe = new RegExp(`(["'])(?:${prefixAlt})\\/[^"']*?\\.wav\\1`, 'g')
   text = text.replace(wavRelRe, (_m, q) => { stats.wavRefs++; return `${q}#${q}` })
 
+  // 5) Strip internal diagnostic jargon for the public build (keep dates + commit IDs).
+  text = stripInternal(text)
+
   return text
 }
 
-// One-time banner so the per-row "wav missing" placeholders read as deliberate.
-const BANNER = '<div style="background:#1f2335;color:#c0caf5;border-bottom:1px solid #2a2f45;'
-  + 'padding:8px 14px;font:500 12px/1.5 system-ui,sans-serif;text-align:center">'
-  + '🔇 Audio playback is disabled on the hosted dashboard — WAV recordings are excluded to keep the deploy light. '
-  + 'Spectrograms are served from Cloudflare R2. Run the sweep locally for audio.</div>'
+// Remove internal catalogue codes (SV/SP/SK + digits) and "EPIC #N" refs, with
+// punctuation cleanup so prose doesn't end up with empty () or stray separators.
+// Safe on minified JSON (no structural whitespace) and on HTML/JS template text.
+function stripInternal(text) {
+  const before = text
+  text = text
+    // parentheticals that are purely codes:  (SV61/SV69)  (SP72)  (SV27/SV30)
+    .replace(/\(\s*(?:SV|SP|SK)\d+(?:\s*[\/,]\s*(?:SV|SP|SK)?\d+)*\s*\)/g, '')
+    // "EPIC #531" / ", EPIC #531" / "Post-EPIC-#531"
+    .replace(/[-,]?\s*\bEPIC[-\s]*#?\d+/g, '')
+    // inline separated refs:  " · SV69"  ", SV61/SV69"
+    .replace(/\s*[·,]\s*(?:SV|SP|SK)\d+(?:\s*\/\s*(?:SV|SP|SK)?\d+)*/g, '')
+    // any remaining bare codes
+    .replace(/\b(?:SV|SP|SK)\d+\b/g, '')
+    // cleanup
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s+([.,;:)])/g, '$1')
+    .replace(/\(\s+/g, '(')
+    .replace(/[ \t]{2,}/g, ' ')
+  if (text !== before) stats.codeStripped++
+  return text
+}
 
-function injectBanner(html) {
-  // insert immediately after the opening <body ...> tag (once)
-  return html.replace(/(<body\b[^>]*>)/i, (m) => `${m}\n${BANNER}`)
+// Inject a stylesheet that hides developer-only UI (audio players, PRNG chips/
+// badges/stat, the methodology "context note"). CSS-only → no JS breakage.
+const STYLE_HIDE = '<style id="__public_hide__">'
+  + '.audio-grid,.audio-pair,.audio-card,.audio-na,.sync-bar,'
+  + '[data-filter="prng"],[data-filter="real"],[data-verdict="prng-variant"],'
+  + '.badge.prng,.badge.real,.stat.prng-variant,.context-note'
+  + '{display:none!important}</style>'
+
+function injectHideStyle(html) {
+  if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${STYLE_HIDE}\n</head>`)
+  return html.replace(/(<body\b[^>]*>)/i, (m) => `${m}\n${STYLE_HIDE}`)
 }
 
 function walk(dir) {
@@ -109,7 +137,7 @@ function walk(dir) {
 
     if (TEXT_EXT.has(ext)) {
       let out = rewrite(readFileSync(full, 'utf8'))
-      if (ext === '.html') out = injectBanner(out)
+      if (ext === '.html') out = injectHideStyle(out)
       writeFileSync(dest, out)
       stats[ext.slice(1)]++
     } else {
