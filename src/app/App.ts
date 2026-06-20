@@ -167,6 +167,13 @@ const BUFFER_COUNT = 10
 
 export class App {
   private engine: SonicPiEngine | null = null
+  /** True only once `engine.init()` has fully resolved. `this.engine` is
+   *  assigned mid-`_initEngine` (handlers must be wired before init), so a Run
+   *  arriving during the init window would otherwise see a non-null engine and
+   *  evaluate against it before it is initialised — yielding "Engine not ready".
+   *  `ensureEngineInitialised` gates on THIS, not on engine-non-null, so such a
+   *  Run instead awaits the in-flight boot and then plays. */
+  private engineReady = false
   /** In-flight engine init, shared so concurrent callers (first-gesture
    *  warmup + a near-simultaneous Run — a Run *click* is itself a
    *  `pointerdown` that fires the warmup) await one boot instead of
@@ -848,7 +855,11 @@ export class App {
    * editor buffer's run state.
    */
   private async ensureEngineInitialised(): Promise<boolean> {
-    if (this.engine) return true
+    // Gate on engineReady, NOT on engine-non-null: `this.engine` is set partway
+    // through `_initEngine` (handlers wired before init), so during the init
+    // window we must fall through to the in-flight-promise await below rather
+    // than report ready and evaluate against an uninitialised engine.
+    if (this.engine && this.engineReady) return true
     // Dedup concurrent boots. The first-gesture warmup and a near-simultaneous
     // Run (a Run *click* is itself a `pointerdown` that arms the warmup) would
     // otherwise both see a null engine and boot two scsynth/AudioContext
@@ -926,6 +937,7 @@ export class App {
       } catch (initErr) {
         this.console.logError('Engine init failed', String(initErr))
         this.toolbar.setLoading(false)
+        this.engineReady = false
         this.engine = null
         track(EVENTS.EngineInitFailed, { browser: detectBrowserFamily(), error: errorClass(initErr) })
         return false
@@ -967,6 +979,7 @@ export class App {
       }
 
       const elapsed = ((performance.now() - t0) / 1000).toFixed(1)
+      this.engineReady = true
       this.toolbar.setLoading(false)
       this.console.logSystem(`  Audio engine ready. (${elapsed}s)`)
       this.console.logSystem('  Session logging active. Ctrl+Shift+S to export.')
