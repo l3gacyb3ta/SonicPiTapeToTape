@@ -112,7 +112,7 @@ function stripInternal(text) {
 // badges/stat, the methodology "context note"). CSS-only → no JS breakage.
 const STYLE_HIDE = '<style id="__public_hide__">'
   + '.audio-grid,.audio-pair,.audio-card,.audio-na,.sync-bar,'
-  + '[data-filter="prng"],[data-filter="real"],[data-verdict="prng-variant"],'
+  + '[data-filter="prng"],[data-filter="real"],[data-filter="precondition"],[data-verdict="prng-variant"],'
   + '.badge.prng,.badge.real,.stat.prng-variant,.context-note'
   + '{display:none!important}</style>'
 

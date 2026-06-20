@@ -36,6 +36,11 @@ const SWEEP = join(ROOT, 'test_results/examples-sweep.json')
 const MANIFEST = join(ROOT, 'tools/gate-reproducers/manifest.json')
 const DIFF_MATRIX = join(ROOT, 'test_results/diff-matrix.json')
 
+// --public (or DASHBOARD_PUBLIC=1) → user-facing HTML: drop internal catalogue
+// codes, PRNG framing and methodology prose. The pass/fail verdict, counts and
+// the per-row table stay. Only the HTML is affected; the JSON/MD keep full detail.
+const PUBLIC = process.argv.includes('--public') || process.env.DASHBOARD_PUBLIC === '1'
+
 interface SweepRow {
   example: string; verdict: string; prng: boolean; heavy: boolean
 }
@@ -172,6 +177,22 @@ writeFileSync(join(ROOT, 'test_results/launch-gate.md'), md)
 
 // ---- write HTML (dashboard view, linked from index.html) ----
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+// Public mode: scrub internal catalogue codes and PRNG framing from free-text
+// detail/reason strings that originate in gate-reproducers/manifest.json, with
+// punctuation cleanup so prose doesn't end up with empty () or stray separators.
+const scrub = (s: string): string => {
+  if (!PUBLIC) return s
+  return s
+    .replace(/\(\s*(?:SV|SP|SK)\d+(?:\s*[\/,]\s*(?:SV|SP|SK)?\d+)*\s*\)/g, '')
+    .replace(/\b(?:SV|SP|SK)\d+\b/g, '')
+    .replace(/\bPRNG[- ]?(?:variant|driven|free|values?)?\b/gi, 'randomness')
+    .replace(/\brandom walk\b/gi, 'randomness')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s+([.,;:)])/g, '$1')
+    .replace(/\(\s+/g, '(')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
 const rowClass = (g: GateRow) => g.pass ? 'pass' : (g.gateVerdict === 'inconcl' ? 'warn' : 'fail')
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -205,31 +226,33 @@ const html = `<!doctype html>
   .crit.warn { border-left: 3px solid #fbbf24; } .crit.warn .v { color: #fbbf24; }
 </style></head>
 <body>
-  ${navBlock('🚦 Tier-1 launch gate · SV46')}
+  ${navBlock(PUBLIC ? '🚦 launch gate' : '🚦 Tier-1 launch gate · SV46')}
   <div class="wrap">
     <h1>Launch Gate</h1>
     <div class="verdict ${passed ? 'pass' : 'fail'}">Overall: ${passed ? '✅ PASS' : '❌ NOT MET'}</div>
     <div class="crit ${rosterPassed ? 'pass' : 'fail'}">
-      <h2>Criterion 1 — non-heavy official roster (PRNG graded by event-parity · SV69)</h2>
+      <h2>${PUBLIC ? 'Criterion 1 — official example roster' : 'Criterion 1 — non-heavy official roster (PRNG graded by event-parity · SV69)'}</h2>
       <div class="v">${passCount}/${total} = ${pct.toFixed(1)}% · threshold ≥${manifest.gateThresholdPct}% · ${rosterPassed ? '✅ PASS' : '❌ NOT MET'}</div>
     </div>
     <div class="crit ${matrix.green === null ? 'warn' : matrix.green ? 'pass' : 'fail'}">
-      <h2>Criterion 2 — Differential matrix <span class="detail">(#469 · construct×context×position vs desktop · dharana §36)</span></h2>
+      <h2>Criterion 2 — Differential matrix${PUBLIC ? '' : ' <span class="detail">(#469 · construct×context×position vs desktop · dharana §36)</span>'}</h2>
       <div class="v">${matrix.green === null ? '⚠️ ABSENT (warn, not blocking)' : matrix.green ? '✅ GREEN' : '❌ NOT GREEN'}</div>
       <p class="detail">${esc(matrix.note)}${matrix.generatedAt ? ` · captured ${matrix.generatedAt}, ${matrix.window}ms window` : ''}${matrix.diverged && matrix.diverged.length ? ` · offenders: ${matrix.diverged.map(c => esc(c)).join(', ')}` : ''} — <a href="diff-matrix.html" style="color:#9aa4b2">open matrix →</a></p>
     </div>
-    <p class="note">Pass = MATCH / EVENT-MATCH / PRNG-VARIANT (the cos fallback). PRNG rows are graded by per-synthdef <code>/s_new</code> event-parity (SV69 — values now match desktop, EPIC #531); a PRNG DIVERGE is a real failure (tracked in #537). Rows the pitch-trackers cannot grade are graded via an instrument-friendly <b>projection</b> that exercises the same engine logic (<code>tools/gate-reproducers/</code>). The raw sweep keeps the unvarnished verdicts; this is the launch-gate computation. Projection verdicts depend on #405 + #409 (merged), re-captured live on merged main.</p>
+    <p class="note">${PUBLIC
+      ? 'Pass = a piece plays the right notes at the right times (matches desktop), or is musically equivalent. Rows the pitch-trackers cannot grade directly are graded via an equivalent gradeable projection of the same logic.'
+      : 'Pass = MATCH / EVENT-MATCH / PRNG-VARIANT (the cos fallback). PRNG rows are graded by per-synthdef <code>/s_new</code> event-parity (SV69 — values now match desktop, EPIC #531); a PRNG DIVERGE is a real failure (tracked in #537). Rows the pitch-trackers cannot grade are graded via an instrument-friendly <b>projection</b> that exercises the same engine logic (<code>tools/gate-reproducers/</code>). The raw sweep keeps the unvarnished verdicts; this is the launch-gate computation. Projection verdicts depend on #405 + #409 (merged), re-captured live on merged main.'}</p>
     <table>
       <thead><tr><th>Row</th><th>Raw sweep</th><th>Gate verdict</th><th>Graded via</th><th>Detail</th></tr></thead>
       <tbody>
-${gateRows.map(g => `        <tr class="${rowClass(g)}"><td>${verdictIcon(g)} ${esc(g.example)}</td><td>${g.rawVerdict}</td><td><b>${g.gateVerdict}</b></td><td>${g.gradedVia}</td><td class="detail">${esc(g.detail)}</td></tr>`).join('\n')}
+${gateRows.map(g => `        <tr class="${rowClass(g)}"><td>${verdictIcon(g)} ${esc(g.example)}</td><td>${g.rawVerdict}</td><td><b>${g.gateVerdict}</b></td><td>${g.gradedVia}</td><td class="detail">${esc(scrub(g.detail))}</td></tr>`).join('\n')}
       </tbody>
     </table>
     <h2 style="font-size:15px">Excluded from denominator <span class="detail">(heavy / uncapturable rows — no WAV)</span></h2>
     <ul class="excl">
-${manifest.exclusions.length ? manifest.exclusions.map(e => `      <li><b>${esc(e.example)}</b> — ${esc(e.reason)}</li>`).join('\n') : '      <li><em>none — PRNG rows are now graded by event-parity (SV69); only heavy/silent rows are excluded as uncapturable</em></li>'}
+${manifest.exclusions.length ? manifest.exclusions.map(e => `      <li><b>${esc(e.example)}</b> — ${esc(scrub(e.reason))}</li>`).join('\n') : `      <li><em>${PUBLIC ? 'none — only heavy/silent rows are excluded as uncapturable' : 'none — PRNG rows are now graded by event-parity (SV69); only heavy/silent rows are excluded as uncapturable'}</em></li>`}
     </ul>
-    <p class="detail">Generated by <code>tools/gate-report.ts</code> from <code>examples-sweep.json</code> + <code>tools/gate-reproducers/manifest.json</code>. Re-run: <code>npx tsx tools/gate-report.ts</code>.</p>
+    ${PUBLIC ? '' : `<p class="detail">Generated by <code>tools/gate-report.ts</code> from <code>examples-sweep.json</code> + <code>tools/gate-reproducers/manifest.json</code>. Re-run: <code>npx tsx tools/gate-report.ts</code>.</p>`}
   </div>
 </body></html>`
 writeFileSync(join(ROOT, 'test_results/launch-gate.html'), html)

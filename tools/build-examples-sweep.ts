@@ -43,6 +43,12 @@ const ROSTERS: Record<string, Roster> = {
 }
 
 const argv = process.argv.slice(2)
+// --public (or DASHBOARD_PUBLIC=1) → user-facing build: clean the per-row verdict
+// explanation strings, zero the PRNG manifest flags (so no PRNG badges render),
+// and strip the static viewer's PRNG chrome + methodology prose. The verdict
+// badge, spectrogram, tempo/stats, dates and snippet stay. Dev build (no flag)
+// keeps full diagnostic detail.
+const PUBLIC = argv.includes('--public') || process.env.DASHBOARD_PUBLIC === '1'
 const rosterName = (argv.find(a => a.startsWith('--roster=')) ?? '').split('=')[1]
   || (argv.includes('--roster') ? argv[argv.indexOf('--roster') + 1] : 'official')
 if (!ROSTERS[rosterName]) {
@@ -290,6 +296,25 @@ function parseReport(reportPath: string): Partial<SweepRow> {
   return row
 }
 
+// Short, clean verdict label for public mode — derived from the verdict category,
+// replacing the verbose internal explanation in `verdictRaw`.
+function publicVerdictLabel(v: SweepRow['verdict']): string {
+  switch (v) {
+    case 'match':
+    case 'event-match':
+    case 'prng-variant':
+      return 'Matches desktop'
+    case 'diverge':
+      return 'Differs from desktop'
+    case 'engine-silent':
+    case 'tool-fail':
+    case 'error':
+      return 'Could not be captured'
+    default:
+      return 'Inconclusive'
+  }
+}
+
 function slugify(path: string): string {
   // illusionist/chord_inversions.rb → illusionist__chord_inversions
   return path.replace(/\.rb$/, '').replace(/\//g, '__')
@@ -374,6 +399,16 @@ for (const examplePath of EXAMPLES) {
   // for manifest back-compat; it now means "real divergences", PRNG included.)
   if (row.verdict === 'diverge') row.prngFreeReal = true
 
+  // Public mode: the viewer renders `verdictRaw` verbatim in the detail panel and
+  // emits PRNG / real badges from these flags. Replace the verbose internal
+  // explanation with a short clean label and clear the PRNG flags so no PRNG
+  // framing reaches the page. The clean `verdict` badge still carries the result.
+  if (PUBLIC) {
+    row.verdictRaw = publicVerdictLabel(row.verdict)
+    row.prng = false
+    row.prngFreeReal = false
+  }
+
   // Copy artifacts into test_results/<rosterDir>/<slug>/. Manifest paths MUST use
   // ROSTER.outDirName, NOT a hardcoded 'examples-sweep' — otherwise a non-official
   // roster (e.g. book-examples-sweep) copies artifacts to the right dir but links
@@ -424,6 +459,8 @@ const counts = {
   error: rows.filter(r => r.verdict === 'error').length,
   engineSilent: rows.filter(r => r.verdict === 'engine-silent').length,
   toolFail: rows.filter(r => r.verdict === 'tool-fail').length,
+  // In public mode the per-row PRNG flags are cleared above, so these collapse to
+  // 0 — no PRNG framing in the summary/intro counts.
   prng: rows.filter(r => r.prng).length,
   prngFreeReal: rows.filter(r => r.prngFreeReal).length,
   heavy: rows.filter(r => r.heavy).length,
@@ -440,6 +477,57 @@ const manifest = {
   entries: rows,
 }
 
+// --- Public-mode viewer cleaning -------------------------------------------
+// The two sweep viewers (examples-sweep.html / book-examples-sweep.html) are
+// hand-maintained static templates; this builder only injects the manifest. In
+// public mode we additionally strip their PRNG chrome + methodology prose so the
+// published page is user-facing. Operations are anchored on the template's stable
+// marker classes/attributes; JS stays valid (removed filter buttons just yield an
+// empty NodeList in the chip-listener loop — no thrown error).
+function cleanViewerForPublic(html: string): string {
+  // 1) Remove the methodology "context note" (Sweep state / confounds / SV codes).
+  html = html.replace(/<div class="context-note">[\s\S]*?<\/div>/, '')
+  // 2) Remove the PRNG / PRNG-free filter buttons (the data-filter chips). The
+  //    verdict chips (data-verdict) stay; the chip-click listener tolerates their
+  //    absence (querySelectorAll → empty).
+  html = html.replace(/\s*<button class="chip" data-filter="(?:prng|real)"[^>]*>[\s\S]*?<\/button>/g, '')
+  // 3) Replace the renderIntro methodology body (tldr PRNG framing + the Confound
+  //    sections + issue-list + "How to read each row" SV prose) with a clean
+  //    intro that keeps the heading + the verdict stat-grid (still clickable).
+  html = html.replace(
+    /(\$\('detail'\)\.innerHTML = `\s*<div class="intro">)[\s\S]*?(<div class="stat-grid">[\s\S]*?)<div class="section-h">[\s\S]*?(`;\s*for \(const stat of \$\('detail'\)\.querySelectorAll\('\.stat\[data-only\]'\)\))/,
+    `$1
+            <h1>Sonic Pi Examples — Desktop &harr; Web Sweep</h1>
+            <div style="color:var(--text-mute);font-family:var(--mono);font-size:11px;margin:4px 0 18px">
+              Each example is run on desktop Sonic Pi and on the browser engine, then compared. Pitch (the note progression) is the verdict.
+            </div>
+            $2
+            <div class="footer-meta">
+              <strong>How to read each row:</strong> click an example in the sidebar to load its desktop &harr; web detail panel — both renderings, the spectrogram comparison, the note progression, and basic tempo/level stats. Pitch is the musical-correctness verdict; timbre and level are supporting only.
+            </div>
+          $3`,
+  )
+  // 4) Scrub any residual catalogue codes + PRNG framing in the remaining template
+  //    text (per-row TLDR banners, "How to read this" Tier prose, badge labels).
+  //    The manifest slot is overwritten afterwards, so scrubbing its old content
+  //    here is harmless.
+  html = html
+    .replace(/\bPRNG[- ]?(?:VARIANT|variant)\b/g, 'variant')
+    .replace(/\bPRNG[- ]?free\b/gi, 'genuine')
+    .replace(/\bPRNG[- ]?driven\b/gi, 'randomness-driven')
+    .replace(/\bcross-engine PRNG\b/gi, 'cross-engine randomness')
+    .replace(/\bPRNG\b/g, 'randomness')
+    .replace(/\brandom walk\b/gi, 'random stream')
+    .replace(/\brand-stream\b/gi, 'random-stream')
+    .replace(/\(\s*(?:SV|SP|SK)\d+(?:\s*[\/,]\s*(?:SV|SP|SK)?\d+)*\s*\)/g, '')
+    .replace(/\bper (?:SV|SP|SK)\d+\b/gi, '')
+    .replace(/\b(?:SV|SP|SK)\d+(?:\s*\/\s*(?:SV|SP|SK)\d+)*\b/g, '')
+    .replace(/\bConfound\b/g, 'Caveat')
+    .replace(/\(\s*\)/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+  return html
+}
+
 writeFileSync(OUT_JSON, JSON.stringify(manifest, null, 2))
 
 // Bake the manifest into the static viewer's inline <script id="__manifest__">
@@ -448,12 +536,18 @@ writeFileSync(OUT_JSON, JSON.stringify(manifest, null, 2))
 // http and the slot is empty/null.
 const VIEWER_HTML = resolve(ROOT, 'test_results', `${ROSTER.outDirName}.html`)
 if (existsSync(VIEWER_HTML)) {
-  const html = readFileSync(VIEWER_HTML, 'utf8')
+  let html = readFileSync(VIEWER_HTML, 'utf8')
+  // Public mode: strip the static viewer's PRNG chrome + methodology prose at the
+  // source (the chrome is hand-maintained in this template, not generated above).
+  // NOTE: this mutates the on-disk template, so the publish flow must start from
+  // the pristine git-tracked template (publish-dashboards.sh does `git checkout`
+  // on these viewers first). Dev rebuilds (no --public) also start from git.
+  if (PUBLIC) html = cleanViewerForPublic(html)
   const inlineJson = JSON.stringify(manifest).replace(/<\//g, '<\\/') // guard against </script>
   const slotRe = /(<script id="__manifest__" type="application\/json">)[\s\S]*?(<\/script>)/
   if (slotRe.test(html)) {
     writeFileSync(VIEWER_HTML, html.replace(slotRe, `$1${inlineJson}$2`))
-    console.log(`✓ inlined manifest into ${ROSTER.outDirName}.html (renders on file://)`)
+    console.log(`✓ inlined manifest into ${ROSTER.outDirName}.html (renders on file://)${PUBLIC ? ' [public]' : ''}`)
   } else {
     console.log(`⚠ ${ROSTER.outDirName}.html has no __manifest__ slot — left fetch-only`)
   }

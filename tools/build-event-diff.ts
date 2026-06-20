@@ -27,6 +27,20 @@ const ROOT = resolve(__dirname, '..')
 const CAPTURES = resolve(ROOT, '.captures')
 const TR = resolve(ROOT, 'test_results')
 
+// --public (or DASHBOARD_PUBLIC=1) → user-facing dashboard: no internal catalogue
+// codes, no PRNG / random-walk framing, no methodology prose, no file:line
+// citations. The verdict badge, spectrogram, dates, commit IDs and basic stats
+// stay. The local/dev build (no flag) keeps full diagnostic detail.
+const PUBLIC = process.argv.includes('--public') || process.env.DASHBOARD_PUBLIC === '1'
+
+// Short, clean verdict label for public mode — derived from the verdict category,
+// replacing the verbose internal explanation strings.
+function publicVerdictLabel(v: EffVerdict): string {
+  if (v === 'EVENT-MATCH') return 'Matches desktop'
+  if (v === 'STRUCTURE-DIVERGE' || v === 'SEQUENCE-DIVERGE') return 'Differs from desktop'
+  return 'Inconclusive'
+}
+
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -210,7 +224,11 @@ function fixtureCard(c: Capture): string {
   // reasons + sequence line below — for these fixtures the desktop side is the
   // limit, so those signals describe a desktop fixture failure, not the engine.
   const ngReason = eff === 'NON-GRADEABLE' ? nonGradeableReason(c.name) : null
-  const reasons = ngReason
+  // Public mode: a single clean verdict label instead of the verbose internal
+  // reason list (which names PRNG / random-walk / catalogue codes).
+  const reasons = PUBLIC
+    ? `<li>${esc(publicVerdictLabel(eff))}</li>`
+    : ngReason
     ? `<li>Not gradeable against desktop — ${esc(ngReason)}</li>`
     : r.reasons.map((x) => `<li>${esc(x)}</li>`).join('')
   const voiceRows = r.rows.map(rowCells).join('')
@@ -218,15 +236,21 @@ function fixtureCard(c: Capture): string {
     ? `<div class="tbl-h">FX</div><table class="diff"><thead><tr><th>synthdef</th><th>desktop</th><th>web</th><th>ratio</th><th>d@onset</th><th>w@onset</th><th>status</th></tr></thead><tbody>${r.fxRows.map(rowCells).join('')}</tbody></table>`
     : ''
   const stamp = fmtStamp(c.ts)
-  // SV61/SV69 onset-sequence + per-tick NOTE parity line (when judged).
+  // SV61/SV69 onset-sequence + per-tick NOTE parity line (when judged). Public
+  // mode omits it — it is a developer diagnostic that names the catalogue codes.
   const sp = r.sequenceParity
-  const seqLine = ngReason ? '' : sp && sp.match !== null
+  const seqLine = PUBLIC ? '' : ngReason ? '' : sp && sp.match !== null
     ? `<div class="totals">Onset-sequence + note parity (SV61/SV69, ε=${sp.epsilonMs}ms): <b style="color:${sp.match ? 'var(--pass)' : 'var(--fail)'}">${sp.match ? '✓ MATCH' : '✗ DIVERGE'}</b>${sp.match === false ? ` — ${esc(sp.reasons.find(x => /mis-timed|NOTE multiset|wrong notes/.test(x)) ?? sp.reasons[0] ?? 'onset/notes diverge')}` : ''}</div>`
     : ''
+  // Public mode: drop the PRNG/deterministic classification tag (the badge alone
+  // carries the verdict). Dev mode keeps it.
+  const classTag = PUBLIC
+    ? ''
+    : r.isPrng ? '<span class="tag prng">PRNG · event-parity graded (SV69)</span>' : '<span class="tag det">deterministic</span>'
   return `<section class="fx-card" id="${esc(c.name)}">
   <div class="fx-head">
     <div class="fx-title">${esc(c.name)} ${verdictBadge(eff)}</div>
-    <div class="fx-meta">${r.isPrng ? '<span class="tag prng">PRNG · event-parity graded (SV69)</span>' : '<span class="tag det">deterministic</span>'}
+    <div class="fx-meta">${classTag}
       <span class="tag">window ${c.duration / 1000}s</span>
       <span class="stamp">${esc(stamp)}</span></div>
   </div>
@@ -235,13 +259,13 @@ function fixtureCard(c: Capture): string {
   <div class="totals">Voice /s_new — desktop <b>${r.desktopTotal}</b>, web <b>${r.webTotal}</b>${r.totalRatio !== null ? ` · web <b>${r.totalRatio}×</b> desktop` : ''}</div>
   <table class="diff"><thead><tr><th>synthdef</th><th>desktop</th><th>web</th><th>ratio</th><th>d@onset</th><th>w@onset</th><th>status</th></tr></thead><tbody>${voiceRows}</tbody></table>
   ${fxRows}
-  <details class="raw"><summary>raw /s_new streams + source (${c.desktop.filter((e) => e.addr === '/s_new').length} desktop · ${c.web.filter((e) => e.addr === '/s_new').length} web)</summary>
+  ${PUBLIC ? '' : `<details class="raw"><summary>raw /s_new streams + source (${c.desktop.filter((e) => e.addr === '/s_new').length} desktop · ${c.web.filter((e) => e.addr === '/s_new').length} web)</summary>
     <div class="streams">
       <div class="stream"><div class="stream-h">desktop /s_new</div>${streamRows(c.desktop) || '<div class="ev mute">none</div>'}</div>
       <div class="stream"><div class="stream-h">web /s_new</div>${streamRows(c.web) || '<div class="ev mute">none</div>'}</div>
     </div>
     <div class="src-h">source</div><pre class="src">${esc(c.code)}</pre>
-  </details>
+  </details>`}
 </section>`
 }
 
@@ -366,8 +390,10 @@ const html = `<!doctype html>
 <body>
 ${navBlock('event-level /s_new parity · #446')}
 <div class="wrap">
-  <h1>Event Diff — /s_new structure: count · order · onset</h1>
-  <p class="sub">Desktop Sonic Pi ↔ browser engine, the literal <b>/s_new</b> event streams (not audio). Built <b>${esc(now)}</b>. Desktop via scsynth <code>/dumpOSC</code>; web via the engine's OSC trace.</p>
+  <h1>Event Diff — note-level comparison</h1>
+  <p class="sub">${PUBLIC
+    ? `Desktop Sonic Pi &harr; browser engine — the note events each side plays (not audio). Built <b>${esc(now)}</b>.`
+    : `Desktop Sonic Pi ↔ browser engine, the literal <b>/s_new</b> event streams (not audio). Built <b>${esc(now)}</b>. Desktop via scsynth <code>/dumpOSC</code>; web via the engine's OSC trace.`}</p>
   <div class="hero">
     <span class="stat pass">EVENT-MATCH <b>${counts.match}</b></span>
     <span class="stat fail">DIVERGE <b>${counts.diverge}</b></span>
@@ -375,11 +401,11 @@ ${navBlock('event-level /s_new parity · #446')}
     <span class="stat incon">NON-GRADEABLE <b>${counts.nonGradeable}</b></span>
     <span class="stat">fixtures <b>${counts.total}</b></span>
   </div>
-  <div class="caveat">
+  ${PUBLIC ? '' : `<div class="caveat">
     <b>How to read this.</b> This diffs the literal /s_new streams desktop and web send to scsynth — it is the event-level companion to the audio comparator (which is opaque past desktop's audio). The verdict folds three axes: synthdef <b>structure</b> (a DROPPED significant layer is the robust divergence signal), per-synthdef <b>onset timing</b>, and per-tick <b>NOTE values</b>. <b>PRNG pieces are now fully graded</b> — post-EPIC-#531 the engine's random walk matches desktop's frozen rand-stream note-for-note (SV69, superseding the old SV49 "values not diffed" non-goal); a PRNG piece whose onset-sequence or notes diverge is a real divergence (tracked in #537). A fixed wall-clock window counts more events on the faster-progressing engine, so raw counts are prefix-compared.
-  </div>
+  </div>`}
   ${cards}
-  <footer>Generated by <code>tools/build-event-diff.ts</code> from <code>.captures/eventparity_*.json</code> (latest per fixture). Captures from <code>tools/event-parity.ts</code>. Re-run after new captures to refresh.</footer>
+  ${PUBLIC ? '' : `<footer>Generated by <code>tools/build-event-diff.ts</code> from <code>.captures/eventparity_*.json</code> (latest per fixture). Captures from <code>tools/event-parity.ts</code>. Re-run after new captures to refresh.</footer>`}
 </div>
 </body>
 </html>
