@@ -88,6 +88,11 @@ function rewrite(text) {
 // Remove internal catalogue codes (SV/SP/SK + digits) and "EPIC #N" refs, with
 // punctuation cleanup so prose doesn't end up with empty () or stray separators.
 // Safe on minified JSON (no structural whitespace) and on HTML/JS template text.
+// NOTE: kept JS-safe. Earlier punctuation-cleanup rules (e.g. removing empty
+// "()" ) also ate legitimate inline JS — `() => {` / `fn()` — producing a syntax
+// error that left the viewers stuck on "Loading…". We only strip the code tokens
+// themselves (incl. their wrapping parens) and collapse runs of spaces; no rule
+// touches a standalone "()" or whitespace adjacent to JS punctuation.
 function stripInternal(text) {
   const before = text
   text = text
@@ -99,10 +104,7 @@ function stripInternal(text) {
     .replace(/\s*[·,]\s*(?:SV|SP|SK)\d+(?:\s*\/\s*(?:SV|SP|SK)?\d+)*/g, '')
     // any remaining bare codes
     .replace(/\b(?:SV|SP|SK)\d+\b/g, '')
-    // cleanup
-    .replace(/\(\s*\)/g, '')
-    .replace(/\s+([.,;:)])/g, '$1')
-    .replace(/\(\s+/g, '(')
+    // safe: collapse runs of spaces only (never touches () or punctuation)
     .replace(/[ \t]{2,}/g, ' ')
   if (text !== before) stats.codeStripped++
   return text

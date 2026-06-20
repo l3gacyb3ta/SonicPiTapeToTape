@@ -523,7 +523,9 @@ function cleanViewerForPublic(html: string): string {
     .replace(/\bper (?:SV|SP|SK)\d+\b/gi, '')
     .replace(/\b(?:SV|SP|SK)\d+(?:\s*\/\s*(?:SV|SP|SK)\d+)*\b/g, '')
     .replace(/\bConfound\b/g, 'Caveat')
-    .replace(/\(\s*\)/g, '')
+    // NB: do NOT collapse empty "()" here — this scrub runs over the viewer's
+    // inline JS, and removing "()" breaks `() => {` / `fn()`, which left the
+    // viewers stuck on "Loading…". Only collapse runs of spaces.
     .replace(/[ \t]{2,}/g, ' ')
   return html
 }
