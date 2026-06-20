@@ -123,6 +123,16 @@ rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 walk(SRC)
 
+// Static-site Vercel config: no build, no install, serve the dir as-is.
+// (Without this, Vercel inherits a build command and fails — there is no package.json here.)
+writeFileSync(join(OUT, 'vercel.json'), JSON.stringify({
+  $schema: 'https://openapi.vercel.sh/vercel.json',
+  buildCommand: "echo 'static dashboard — no build'",
+  installCommand: "echo 'static dashboard — no install'",
+  outputDirectory: '.',
+  framework: null,
+}, null, 2) + '\n')
+
 console.log(`[dashboard-publish] R2_BASE = ${R2_BASE}`)
 console.log(`[dashboard-publish] out     = ${OUT}/`)
 console.log(`  text: html=${stats.html} json=${stats.json} md=${stats.md} · other-copied=${stats.copied}`)
