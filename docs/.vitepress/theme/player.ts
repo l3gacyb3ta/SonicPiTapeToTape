@@ -3,6 +3,17 @@
 // whole page). The engine is the project's own browser engine, imported lazily
 // on the first Run so the docs stay fast and SSR-safe.
 
+// Reuse the editor's own share-link encoder so the docs' "open in sonicpi.cc"
+// link and the app's permalinks stay byte-for-byte identical (#c=<base64url>).
+// config.ts allows fs access to the repo root, so importing from ../src works.
+import { encodeShareCode } from '../../../src/app/ShareLink'
+
+// The live editor at sonicpi.cc loads a shared buffer verbatim from the URL
+// fragment on startup (App.loadBuffers → decodeShareCode). It does NOT auto-run
+// — autoplay needs a user gesture in the destination tab — so the snippet lands
+// ready-to-run and the user clicks Run there.
+const SONICPI_CC = 'https://sonicpi.cc/'
+
 type Engine = {
   init(): Promise<void>
   evaluate(code: string): Promise<{ error?: Error }>
@@ -129,7 +140,16 @@ export function decorateRubyBlocks() {
       else run(block, code, btn)
     })
 
+    // Third control: open this snippet in the live editor at sonicpi.cc.
+    const link = document.createElement('a')
+    link.className = 'spw-link'
+    link.href = SONICPI_CC + encodeShareCode(code)
+    link.target = '_blank'
+    link.rel = 'noopener'
+    link.innerHTML = '<span class="spw-label">↗ Open in sonicpi.cc</span>'
+
     bar.appendChild(btn)
+    bar.appendChild(link)
     block.appendChild(bar)
     block.classList.add('spw-block')
   })
@@ -151,6 +171,20 @@ function injectStyleOnce() {
     transition: background .15s, color .15s, border-color .15s;
   }
   .spw-btn:hover { border-color: var(--vp-c-brand-1, #3451b2); }
+  .spw-link {
+    display: inline-flex; align-items: center;
+    font: 600 12px/1 var(--vp-font-family-mono, monospace);
+    color: var(--vp-c-brand-1, #3451b2);
+    background: var(--vp-c-bg-soft, #f6f6f7);
+    border: 1px solid var(--vp-c-border, #d1d5db);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer;
+    text-decoration: none;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .spw-link:hover {
+    color: #fff; background: var(--vp-c-brand-1, #3451b2);
+    border-color: var(--vp-c-brand-1, #3451b2);
+  }
   .spw-btn[data-state="playing"] {
     color: #fff; background: var(--vp-c-brand-1, #3451b2);
     border-color: var(--vp-c-brand-1, #3451b2);
