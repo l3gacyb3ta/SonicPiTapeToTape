@@ -67,23 +67,54 @@
         // evaluate until the parser (or its regex fallback) is live.
         for (var i = 0; i < 25; i++) {
           var w = await e.evaluate('# warmup')
-          if (!w.error || !/parser not available|still be loading/i.test(w.error.message)) break
+          if (!w.error || !READINESS_RE.test(w.error.message)) break
           await new Promise(function (r) { setTimeout(r, 300) })
         }
         engine = e
         window.__spwEngine = e
         return e
-      })()
+      })().catch(function (err) {
+        // A failed init (CDN blocked, WASM error) must not poison the cache —
+        // null it so the NEXT Run retries from scratch instead of replaying the
+        // rejection forever.
+        enginePromise = null
+        throw err
+      })
     }
     return enginePromise
   }
 
+  // The engine reports "not ready" two ways while it is still coming up: before
+  // init() finishes (`SonicPiEngine not initialized`) and while the tree-sitter
+  // transpiler is still loading (`parser not available` / `still be loading`).
+  // Neither is a fault in the user's snippet — we keep the spinner and poll
+  // rather than surfacing them as errors.
+  var READINESS_RE = /not initialized|parser not available|still be loading|engine.*not.*ready/i
+
+  // Evaluate, but treat a readiness error as "engine still warming up": keep
+  // retrying (button stays in the loading/spinner state) until the engine can
+  // actually run the code, or a hard cap elapses. Only a genuine code error (or
+  // a readiness error that never clears) is returned to the caller.
+  async function evaluateWhenReady(e, code) {
+    var deadline = Date.now() + 30000
+    for (;;) {
+      var res = await e.evaluate(code)
+      if (!res.error || !READINESS_RE.test(res.error.message)) return res
+      if (Date.now() > deadline) return res
+      await new Promise(function (r) { setTimeout(r, 250) })
+    }
+  }
+
   function setState(btn, state) {
     btn.dataset.state = state
-    btn.textContent =
-      state === 'playing' ? '■ Stop' :
-      state === 'loading' ? '… Loading' :
-      state === 'error' ? '⚠ Error' : '▶ Run'
+    if (state === 'loading') {
+      // Animated spinner in place of the label until the engine can play.
+      btn.innerHTML = '<span class="spw-spinner" aria-hidden="true"></span>Loading'
+    } else {
+      btn.textContent =
+        state === 'playing' ? '■ Stop' :
+        state === 'error' ? '⚠ Error' : '▶ Run'
+    }
   }
 
   function stopCurrent() {
@@ -112,7 +143,8 @@
     setState(btn, 'loading')
     try {
       var e = await getEngine()
-      var res = await e.evaluate(btn.__spwCode)
+      // Spinner stays up while the engine warms; only a real snippet error stops it.
+      var res = await evaluateWhenReady(e, btn.__spwCode)
       if (res.error) { setState(btn, 'error'); showError(bar, res.error.message || String(res.error)); return }
       e.play()
       currentBtn = btn
@@ -154,7 +186,9 @@
         btn.className = 'spw-run'
         setState(btn, 'idle')
         btn.addEventListener('click', function () {
-          if (btn.dataset.state === 'playing') stopCurrent()
+          var st = btn.dataset.state
+          if (st === 'loading') return // already warming up — ignore extra clicks
+          if (st === 'playing') stopCurrent()
           else run(bar, btn)
         })
         bar.appendChild(btn)
@@ -205,7 +239,11 @@
       'align-items:center;transition:background .15s,color .15s,border-color .15s}' +
       '.spw-run:hover,.spw-link:hover{background:rgba(120,160,255,.22);border-color:#7aa2f7}' +
       '.spw-run[data-state="playing"]{color:#0b0d12;background:#7aa2f7;border-color:#7aa2f7}' +
-      '.spw-run[data-state="loading"]{opacity:.7;cursor:progress}' +
+      '.spw-run[data-state="loading"]{cursor:progress;opacity:.85}' +
+      '.spw-spinner{display:inline-block;width:11px;height:11px;margin-right:6px;' +
+      'border:2px solid rgba(158,203,255,.30);border-top-color:#9ecbff;border-radius:50%;' +
+      'animation:spw-spin .7s linear infinite}' +
+      '@keyframes spw-spin{to{transform:rotate(360deg)}}' +
       '.spw-run[data-state="error"]{color:#ff8585;border-color:#ff8585;background:rgba(255,80,80,.10)}' +
       '.spw-error{display:none;margin:4px 0 8px;padding:8px 11px;white-space:pre-wrap;' +
       'font:12px/1.5 ui-monospace,Menlo,monospace;color:#ff8585;background:rgba(255,80,80,.08);' +
