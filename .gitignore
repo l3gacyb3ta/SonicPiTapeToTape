@@ -68,3 +68,8 @@ tests/book-examples/
 
 # Generated dashboard publish bundle (regenerated from test_results/)
 dashboard-dist/
+
+# VitePress docs (generated)
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/public/rand-stream.wav
