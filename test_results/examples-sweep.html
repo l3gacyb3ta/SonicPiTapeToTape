@@ -262,12 +262,10 @@
           <h2 class="sidebar-title"><strong>Official Examples</strong><span id="count" style="color:var(--text-mute);margin-left:6px"></span></h2>
           <div class="summary" id="summary"></div>
           <div class="context-note">
-            <b>Sweep state (2026-05-18):</b> all 34 bundled Sonic Pi examples ran through <code>compare-desktop-vs-web.ts</code>.
-            Raw <b>2/34 match</b> is <b>not trustworthy</b> — two confounds dominate.
-            <b>#1</b> The comparator's web-WAV resolver fails for heavy multi-loop examples (engine renders audio; tool can't pick it up) — filed as
-            <a href="https://github.com/MrityunjayBhardwaj/SonicPiWeb/issues/358">#358</a> (BLOCKER, SV27/SV30 class).
-            <b>#2</b> 17/22 DIVERGE rows are cross-engine PRNG divergence — one design question, not 17 bugs.
-            Stripped: <b>5 PRNG-free genuine divergences</b> + <b>2 clean matches</b> (<code>mod_303_phade</code>, <code>driving_pulse</code>).
+            <b>Sweep state (2026-06-18):</b> all 34 bundled Sonic Pi examples ran through <code>compare-desktop-vs-web.ts</code>.
+            <b>34/34 gradeable · 0 DIVERGE</b> — <b>4 MATCH</b> + <b>30 EVENT-MATCH</b>.
+            <b>27/34</b> rows are PRNG-driven: graded at the <code>/s_new</code> emission boundary by event-parity — the engine emits the right notes at the right times (SV61/SV69) — not by raw audio Tier-1 pitch, which here measures WASM-vs-native scsynth DSP, not the engine. <b>0 PRNG-free genuine divergences.</b>
+            The old web-WAV-resolver confound (<a href="https://github.com/MrityunjayBhardwaj/SonicPiWeb/issues/358">#358</a>, SV27/SV30 class) no longer gates the reading — <b>heavy / tool-fail = 0</b>.
           </div>
           <div class="controls">
             <input id="search" type="search" placeholder="search examples (e.g. ambient, acid)" autocomplete="off" spellcheck="false" />
