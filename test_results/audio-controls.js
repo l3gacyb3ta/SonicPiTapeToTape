@@ -254,8 +254,24 @@
     document.head.appendChild(el)
   }
 
+  // Opened from disk (file://), browsers block the ES-module engine load and its
+  // wasm/wav fetches, so only the "open in sonicpi.cc" link works. Show a one-time
+  // banner explaining how to get the in-page Run/Stop controls.
+  function injectFileHintOnce() {
+    if (HTTP_SERVED || document.getElementById('spw-file-hint')) return
+    var bar = document.createElement('div')
+    bar.id = 'spw-file-hint'
+    bar.style.cssText = 'position:sticky;top:0;z-index:9999;padding:7px 14px;font:600 12px/1.4 ' +
+      'ui-monospace,Menlo,monospace;color:#0b0d12;background:#e0af68;text-align:center'
+    bar.innerHTML = '▶ Run/Stop needs the dashboards served over http — run ' +
+      '<code style="background:rgba(0,0,0,.15);padding:1px 5px;border-radius:4px">npm run dashboard:serve</code>' +
+      ' (or use the live site). Opened from disk, only the ↗ open-in-sonicpi.cc link works.'
+    document.body.insertBefore(bar, document.body.firstChild)
+  }
+
   function init() {
     injectStyleOnce()
+    injectFileHintOnce()
     scan(document)
     // Family B (examples-sweep / book / fx-inspector) renders the snippet client
     // -side and swaps it on fixture selection — re-scan on DOM/text mutations.
