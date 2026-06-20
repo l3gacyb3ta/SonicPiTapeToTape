@@ -171,7 +171,13 @@ Parity is measured **end-to-end** — not from unit tests alone, but by running 
 | **Event-parity sweep** | **151 / 154** | Full fixture corpus: 151 EVENT-MATCH · **0 DIVERGE** · 3 non-gradeable by design |
 | **Unit tests** | **1491 / 1491** | Vitest, across 68 files (`npx vitest run`) |
 
-The 3 non-gradeable fixtures are excluded by design (a counter probe, a density isolation probe, and a deliberate web-only feature test), not failures. Regenerate the gate yourself with `npx tsx tools/gate-report.ts`; the full per-fixture breakdown lives in `test_results/launch-gate.md` and the browsable dashboards under `test_results/`.
+The 3 non-gradeable fixtures are excluded by design (a counter probe, a density isolation probe, and a deliberate web-only feature test), not failures. Regenerate the gate yourself with `npx tsx tools/gate-report.ts`; the full per-fixture breakdown lives in `test_results/launch-gate.md`.
+
+### Browse the parity dashboards
+
+Every fixture is browsable in the live **[parity dashboard](https://dashboard-dist-five.vercel.app)** — one overview links the official roster, the differential matrix, per-`/s_new` event-diffs, the launch gate, and the FX A/B inspector, each with desktop ↔ web spectrograms.
+
+Every Ruby snippet on the dashboards is **playable in the browser** — ▶ Run / ■ Stop through the same engine that powers the editor — and carries an **↗ open in sonicpi.cc** link that loads it straight into the live editor. Locally, open `test_results/index.html`, or serve the dashboards with inline audio via `npm run dashboard:serve`.
 
 ### Feature coverage
 
