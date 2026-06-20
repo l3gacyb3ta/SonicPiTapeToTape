@@ -130,7 +130,11 @@ function walk(dir) {
     if (st.isDirectory()) { walk(full); continue }
 
     const ext = extname(name).toLowerCase()
-    if (ext === '.wav') { stats.droppedWav++; continue } // never ship WAVs
+    // Drop the ~1.1 GB of captured recordings, but KEEP the frozen-PRNG rand
+    // streams (rand-stream*.wav, ~4.4 MB) — the inline engine fetches them to
+    // make snippets playable. spw-engine.mjs + tree-sitter*.wasm fall through to
+    // the copy branch below, so the published site can run audio too.
+    if (ext === '.wav' && !/^rand-stream(-[a-z-]+)?\.wav$/.test(name)) { stats.droppedWav++; continue }
     if (ext === '.png') { stats.droppedPng++; continue } // images live on R2
 
     const rel = relative(SRC, full)

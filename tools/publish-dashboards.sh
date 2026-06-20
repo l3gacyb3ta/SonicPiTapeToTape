@@ -30,6 +30,13 @@ export DASHBOARD_PUBLIC=1
 
 echo "[publish-dashboards] regenerating dashboards in PUBLIC mode (no capture)…"
 
+# 0) Inline-audio runtime — the same-origin engine bundle + tree-sitter wasm +
+#    rand-stream wavs that make every snippet's Run button work on the deployed
+#    site. build-dashboard-publish.mjs copies these from test_results/ into the
+#    bundle (and keeps rand-stream*.wav past the WAV drop).
+echo "[publish-dashboards] building inline-audio runtime (spw-engine.mjs + assets)…"
+npm run dashboard:audio
+
 # Restore pristine static viewer templates so public cleaning starts from full
 # content. Only restores if the file is git-tracked (skips quietly otherwise).
 for f in test_results/examples-sweep.html test_results/book-examples-sweep.html; do

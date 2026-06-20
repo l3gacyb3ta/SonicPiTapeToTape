@@ -39,6 +39,8 @@
     "docs:assets": "cp -f public/rand-stream.wav docs/public/rand-stream.wav",
     "build:docs": "npm run docs:assets && vitepress build docs",
     "dev:docs": "npm run docs:assets && vitepress dev docs",
+    "dashboard:audio": "node tools/build-dashboard-audio.mjs",
+    "dashboard:serve": "npm run dashboard:audio && npx --yes serve -l 5180 test_results",
     "build:all": "npm run build:single && npm run build:docs",
     "inspect:build": "npx tsx tools/build-test-results.ts",
     "inspect": "npx tsx tools/build-test-results.ts && python3 -m http.server -d test_results 8080",
