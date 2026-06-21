@@ -130,6 +130,9 @@ const STOP_FADE_MARGIN_MS = 10
 // Gain staging, I/O, and safety parameters are centralized in config.ts.
 // See config.ts SECTION 1 (MIXER) for the full A/B calibration history.
 import { MIXER, AUDIO_IO } from './config'
+// #604 / SV80: single source of truth for the runtime CDN URLs the engine
+// loads itself when a consumer supplies no override.
+import { CDN_DEFAULTS, SUPERSONIC_VERSION } from './cdn-manifest'
 
 export class SuperSonicBridge {
   private sonic: SuperSonic | null = null
@@ -231,12 +234,29 @@ export class SuperSonicBridge {
   }
 
   async init(): Promise<void> {
-    // Try constructor passed via options, then global scope
-    const SuperSonicClass = this.options.SuperSonicClass
+    // Try constructor passed via options, then global scope.
+    let SuperSonicClass = this.options.SuperSonicClass
       ?? (globalThis as Record<string, unknown>).SuperSonic as SuperSonicConstructor | undefined
+    // #604 / SV80: self-sufficiency. When no class is supplied and we're in a
+    // browser, the engine loads SuperSonic itself from the pinned CDN. This is a
+    // dynamic `import()` of a runtime URL string — esbuild/Vite never bundle it,
+    // so the GPL scsynth core stays out of our (MIT) bundle while a bare consumer
+    // still gets audio with zero wiring. Node/test contexts skip this (no window,
+    // no audio) and fall through to the throw below.
+    if (!SuperSonicClass && typeof window !== 'undefined') {
+      try {
+        const mod = await import(/* @vite-ignore */ CDN_DEFAULTS.superSonicModule) as Record<string, unknown>
+        SuperSonicClass = (mod.SuperSonic ?? mod.default) as SuperSonicConstructor | undefined
+      } catch (err) {
+        throw new Error(
+          `SuperSonic failed to load from ${CDN_DEFAULTS.superSonicModule}. ` +
+          `Pass options.SuperSonicClass to load it yourself, or check network/CSP. (${String(err)})`
+        )
+      }
+    }
     if (!SuperSonicClass) {
       throw new Error(
-        'SuperSonic not found. Pass it via options.SuperSonicClass or load via CDN.'
+        'SuperSonic not found. Pass it via options.SuperSonicClass or load via CDN (browser only).'
       )
     }
     this.SuperSonicClass = SuperSonicClass
@@ -244,17 +264,18 @@ export class SuperSonicBridge {
     this.oscEncoder = SuperSonicClass.osc ?? { encodeSingleBundle: fallbackEncodeSingleBundle }
 
     // SuperSonic constructor options — URLs for workers, WASM, synthdefs, samples.
-    // Workers and JS live in the main package; WASM in the core package.
-    // EXP-006: pinned to v0.57.0 to test if pre-faff87a (2026-03-03) MdaPiano build restores :piano
-    const pkgBase = 'https://unpkg.com/supersonic-scsynth@0.57.0/dist/'
-    const coreBase = 'https://unpkg.com/supersonic-scsynth-core@0.57.0/'
-    this.resolvedSampleBaseURL = this.options.sampleBaseURL ?? 'https://unpkg.com/supersonic-scsynth-samples@0.57.0/samples/'
+    // Workers and JS live in the main package; WASM in the core package. All four
+    // packages are version-locked to SUPERSONIC_VERSION (SV22) — derived here so a
+    // version bump only edits cdn-manifest.ts, not these literals.
+    const pkgBase = `https://unpkg.com/supersonic-scsynth@${SUPERSONIC_VERSION}/dist/`
+    const coreBase = `https://unpkg.com/supersonic-scsynth-core@${SUPERSONIC_VERSION}/`
+    this.resolvedSampleBaseURL = this.options.sampleBaseURL ?? `https://unpkg.com/supersonic-scsynth-samples@${SUPERSONIC_VERSION}/samples/`
     this.sonic = new SuperSonicClass({
       baseURL: this.options.baseURL ?? pkgBase,
       workerBaseURL: this.options.baseURL ?? `${pkgBase}workers/`,
       wasmBaseURL: this.options.coreBaseURL ?? `${coreBase}wasm/`,
       coreBaseURL: this.options.coreBaseURL ?? coreBase,
-      synthdefBaseURL: this.options.synthdefBaseURL ?? 'https://unpkg.com/supersonic-scsynth-synthdefs@0.57.0/synthdefs/',
+      synthdefBaseURL: this.options.synthdefBaseURL ?? `https://unpkg.com/supersonic-scsynth-synthdefs@${SUPERSONIC_VERSION}/synthdefs/`,
       sampleBaseURL: this.resolvedSampleBaseURL,
       autoConnect: false,
       scsynthOptions: { numOutputBusChannels: NUM_OUTPUT_CHANNELS },
@@ -385,18 +406,26 @@ export class SuperSonicBridge {
     return null
   }
 
-  /** Set master volume (0-1). Controls both scsynth mixer pre_amp and Web Audio gain. */
+  /**
+   * Set master volume. Range mirrors desktop `set_volume!`: 0–5 where **1.0 =
+   * unity** (the no-op baseline), not 1/5 of max. The UI slider's 0–1 range is
+   * a subset (1 = full). Boost (>1) is allowed up to 5 and is tamed by the
+   * mixer's `Limiter.ar(0.99)`, exactly as desktop does.
+   *
+   * Drives a SINGLE gain stage — the scsynth mixer `pre_amp` (the documented
+   * primary volume control, upstream of the limiter and the recording tap).
+   * It deliberately does NOT also scale the Web Audio `masterGainNode`: that
+   * node is UI-feedback-only and stays at unity. Driving both multiplied the
+   * value (≈v²) and collapsed the output to near-silence (#579).
+   */
   setMasterVolume(volume: number): void {
-    const clamped = Math.max(0, Math.min(1, volume))
+    const clamped = Math.max(0, Math.min(5, volume))
     this.currentMasterVolume = clamped
     // pre_amp on the wire = master volume × user-pref pre_amp baseline.
-    // The pref baseline lets users dial in headroom independent of volume.
+    // The pref baseline lets users dial in headroom independent of volume;
+    // volume 1.0 leaves it at the baseline (unity / no-op).
     const scaledPreAmp = clamped * this.currentMixerPreAmp
     this.sonic?.send('/n_set', this.mixerNodeId, 'pre_amp', scaledPreAmp)
-    // Web Audio gain for UI slider feedback (not the primary volume control)
-    if (this.masterGainNode) {
-      this.masterGainNode.gain.setTargetAtTime(clamped, this.masterGainNode.context.currentTime, 0.02)
-    }
   }
 
   /** Set mixer amp (final gain stage). Live — sends /n_set immediately if
@@ -423,15 +452,22 @@ export class SuperSonicBridge {
   /**
    * Set arbitrary mixer params (Tier C PR #3 #255 — set_mixer_control! DSL).
    * The allowlist matches the sonic-pi-mixer synthdef's parameter vocabulary
-   * (pre_amp/amp/hpf/lpf and four bypass flags). Param names not in this
-   * set are silently dropped by scsynth, so we filter + surface a console
-   * warning instead — making the parameter-name boundary loud rather than
-   * quiet. Returns the names actually applied for telemetry / test assertion.
+   * (pre_amp/amp/hpf/lpf, their *_slide glide times, and four bypass flags).
+   * Param names not in this set are silently dropped by scsynth, so we filter
+   * + surface a console warning instead — making the parameter-name boundary
+   * loud rather than quiet. Returns the names actually applied for telemetry.
    */
   setMixerControl(opts: Record<string, number>): string[] {
     if (!this.sonic) return []
     const ALLOWED = new Set([
       'pre_amp', 'amp', 'hpf', 'lpf',
+      // *_slide glide-time params — paired 1:1 with the four control params.
+      // Desktop's canonical example is `set_mixer_control! lpf: 30, lpf_slide:
+      // 16` (sound.rb:1035); the sonic-pi-mixer synthdef declares these
+      // (synthinfo.rb:5637-5660, default 0.02). Without them a mixer sweep
+      // snaps instead of gliding (#581). force_mono/invert_stereo are separate
+      // mixer features — deferred.
+      'pre_amp_slide', 'amp_slide', 'hpf_slide', 'lpf_slide',
       'hpf_bypass', 'lpf_bypass', 'limiter_bypass', 'leak_dc_bypass',
     ])
     const applied: string[] = []
@@ -451,18 +487,34 @@ export class SuperSonicBridge {
    * Reset mixer to MIXER config defaults (Tier C PR #3 #255 — reset_mixer! DSL).
    * Mirrors the initialization sequence in connect() so a sweep can be
    * undone in one call.
+   *
+   * Resets the CACHED gain state (currentMasterVolume / currentMixerPreAmp /
+   * currentMixerAmp) as well as the wire, and sends a COMPOSED pre_amp
+   * (mirroring connect() :301 and setMixerPreAmp :426). Without this, the wire
+   * was reset but the cached fields stayed stale, so a later UI pre-amp slider
+   * drag (setMixerPreAmp) or a mixer re-init re-multiplied by the stale
+   * master volume (#582). Slides are reset to 0 so the reset SNAPS rather than
+   * gliding over any slide armed via set_mixer_control! (#581).
    */
   resetMixer(): void {
     if (!this.sonic) return
+    this.currentMasterVolume = 1
+    this.currentMixerPreAmp = MIXER.PRE_AMP
+    this.currentMixerAmp = MIXER.AMP
     this.sonic.send('/n_set', this.mixerNodeId,
-      'amp', MIXER.AMP,
-      'pre_amp', MIXER.PRE_AMP,
+      'amp', this.currentMixerAmp,
+      'pre_amp', this.currentMasterVolume * this.currentMixerPreAmp,
       'hpf', MIXER.HPF,
       'lpf', MIXER.LPF,
       'limiter_bypass', MIXER.LIMITER_BYPASS,
       'hpf_bypass', 0,
       'lpf_bypass', 0,
       'leak_dc_bypass', 0,
+      // Clear any slide armed by set_mixer_control! so the reset is instant.
+      'pre_amp_slide', 0,
+      'amp_slide', 0,
+      'hpf_slide', 0,
+      'lpf_slide', 0,
     )
   }
 
@@ -775,9 +827,20 @@ export class SuperSonicBridge {
     // Slow path: load synthdef first (only happens once per synth name). The
     // returned promise still REJECTS on a CDN miss (SV43/SP89), so the caller's
     // .catch can surface it — the pre-reserved `nodeId` doesn't change that.
-    return this.ensureSynthDefLoaded(fullName).then(() =>
-      this.triggerSynthImmediate(fullName, audioTime, params, nodeId)
-    )
+    return this.ensureSynthDefLoaded(fullName).then(() => {
+      const id = this.triggerSynthImmediate(fullName, audioTime, params, nodeId)
+      // #570: the interpreter's synchronous end-of-iteration `flushMessages()`
+      // already ran (on an empty queue) before this async load resolved — the
+      // interpreter dispatches `play` fire-and-forget (dispatchNode, no await).
+      // Without flushing here, the `/s_new` we just queued waits for the NEXT
+      // flush (next iteration / sleep) and is then sent at THAT flush's later
+      // timetag — so the first node is dropped (a one-shot run has no next
+      // flush → never sent → silent). Flush it now, in its own bundle at the
+      // original `audioTime`. The fast path needs no flush: it queues
+      // synchronously, inside the iteration's own flush window.
+      this.flushMessages()
+      return id
+    })
   }
 
   private triggerSynthImmediate(
@@ -1001,7 +1064,13 @@ export class SuperSonicBridge {
     if (!this.loadedSynthDefs.has(playerName)) {
       await this.ensureSynthDefLoaded(playerName)
     }
-    return this.playSampleImmediate(sampleName, bufNum, playerName, audioTime, opts, bpm, nodeId)
+    const id = this.playSampleImmediate(sampleName, bufNum, playerName, audioTime, opts, bpm, nodeId)
+    // #570: same race as triggerSynth's slow path — the interpreter dispatches
+    // `sample` fire-and-forget (dispatchNode), so its synchronous flush already
+    // ran before this async load resolved. Flush the just-queued `/s_new` now,
+    // in its own bundle at the original audioTime, or the first node is dropped.
+    this.flushMessages()
+    return id
   }
 
   /**

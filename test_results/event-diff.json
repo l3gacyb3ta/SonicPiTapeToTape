@@ -1,221 +1,62 @@
 {
-  "generatedAt": "2026-06-12T16:23:51.966Z",
+  "generatedAt": "2026-06-18T17:06:59.652Z",
   "counts": {
-    "match": 94,
-    "diverge": 19,
-    "empty": 2,
-    "total": 115
+    "match": 151,
+    "diverge": 0,
+    "empty": 0,
+    "nonGradeable": 3,
+    "total": 154
   },
   "fixtures": [
     {
-      "name": "10_idm_breakbeat",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 42,
-      "webTotal": 58,
-      "totalRatio": 1.38
-    },
-    {
-      "name": "ambient_noctrl",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 10,
-      "webTotal": 8,
-      "totalRatio": 0.8
-    },
-    {
-      "name": "cell_a",
-      "verdict": "SEQUENCE-DIVERGE",
+      "name": "counter",
+      "verdict": "NON-GRADEABLE",
       "structureVerdict": "STRUCTURE-MATCH",
       "sequenceMatch": false,
       "isPrng": false,
-      "desktopTotal": 20,
-      "webTotal": 19,
-      "totalRatio": 0.95
-    },
-    {
-      "name": "cloud_beat",
-      "verdict": "STRUCTURE-DIVERGE",
-      "structureVerdict": "STRUCTURE-DIVERGE",
-      "sequenceMatch": true,
-      "isPrng": true,
-      "desktopTotal": 126,
-      "webTotal": 66,
-      "totalRatio": 0.52
-    },
-    {
-      "name": "compus_beats",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 24,
-      "webTotal": 19,
-      "totalRatio": 0.79
-    },
-    {
-      "name": "dice_hoist",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 6,
-      "webTotal": 7,
-      "totalRatio": 1.17
-    },
-    {
-      "name": "dnb_det",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 20,
-      "webTotal": 28,
-      "totalRatio": 1.4
+      "desktopTotal": 74,
+      "webTotal": 68,
+      "totalRatio": 0.92
     },
     {
       "name": "e2e_08_math_misc",
-      "verdict": "SEQUENCE-DIVERGE",
+      "verdict": "NON-GRADEABLE",
       "structureVerdict": "STRUCTURE-MATCH",
       "sequenceMatch": false,
       "isPrng": true,
       "desktopTotal": 2,
-      "webTotal": 19,
-      "totalRatio": 9.5
-    },
-    {
-      "name": "idm_simple",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 58,
-      "webTotal": 42,
-      "totalRatio": 0.72
-    },
-    {
-      "name": "lorezzed",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 126,
-      "webTotal": 127,
-      "totalRatio": 1.01
-    },
-    {
-      "name": "pB",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 14,
-      "webTotal": 13,
-      "totalRatio": 0.93
-    },
-    {
-      "name": "pRand",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 12,
-      "webTotal": 13,
-      "totalRatio": 1.08
-    },
-    {
-      "name": "sonic_dreams",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 32,
-      "webTotal": 31,
-      "totalRatio": 0.97
-    },
-    {
-      "name": "sw_ambient",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 8,
-      "webTotal": 8,
-      "totalRatio": 1
-    },
-    {
-      "name": "sw_cloud_beat",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 152,
-      "webTotal": 131,
-      "totalRatio": 0.86
-    },
-    {
-      "name": "sw_e2e_06_random",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 11,
-      "webTotal": 12,
-      "totalRatio": 1.09
-    },
-    {
-      "name": "sw_lorezzed",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 146,
-      "webTotal": 141,
-      "totalRatio": 0.97
-    },
-    {
-      "name": "sw_orchard_improv",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 142,
-      "webTotal": 110,
-      "totalRatio": 0.77
-    },
-    {
-      "name": "sw_shufflit",
-      "verdict": "SEQUENCE-DIVERGE",
-      "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": false,
-      "isPrng": true,
-      "desktopTotal": 126,
-      "webTotal": 122,
-      "totalRatio": 0.97
+      "webTotal": 20,
+      "totalRatio": 10
     },
     {
       "name": "iso_density",
-      "verdict": "DESKTOP-EMPTY",
+      "verdict": "NON-GRADEABLE",
       "structureVerdict": "DESKTOP-EMPTY",
       "sequenceMatch": null,
       "isPrng": false,
       "desktopTotal": 0,
-      "webTotal": 3,
+      "webTotal": 5,
       "totalRatio": null
     },
     {
-      "name": "with_sample_bpm",
-      "verdict": "DESKTOP-EMPTY",
-      "structureVerdict": "DESKTOP-EMPTY",
-      "sequenceMatch": null,
-      "isPrng": false,
-      "desktopTotal": 0,
-      "webTotal": 6,
-      "totalRatio": null
+      "name": "10_idm_breakbeat",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 42,
+      "webTotal": 42,
+      "totalRatio": 1
+    },
+    {
+      "name": "40_choose_generator",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 64,
+      "webTotal": 62,
+      "totalRatio": 0.97
     },
     {
       "name": "amb_iso",
@@ -226,6 +67,106 @@
       "desktopTotal": 12,
       "webTotal": 12,
       "totalRatio": 1
+    },
+    {
+      "name": "ambient",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 12,
+      "webTotal": 11,
+      "totalRatio": 0.92
+    },
+    {
+      "name": "ambient_noctrl",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 10,
+      "webTotal": 9,
+      "totalRatio": 0.9
+    },
+    {
+      "name": "blade_fixed",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 26,
+      "webTotal": 24,
+      "totalRatio": 0.92
+    },
+    {
+      "name": "c_bareloop",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 27,
+      "webTotal": 26,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "c_choose",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 27,
+      "webTotal": 26,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "c_choose_bareloop",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 27,
+      "webTotal": 26,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "c_faithful",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 53,
+      "webTotal": 52,
+      "totalRatio": 0.98
+    },
+    {
+      "name": "c_literal",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 27,
+      "webTotal": 26,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "c_var",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 27,
+      "webTotal": 26,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "cell_a",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 28,
+      "webTotal": 27,
+      "totalRatio": 0.96
     },
     {
       "name": "cell_bare_loop__nothing__nested",
@@ -251,7 +192,7 @@
       "name": "cell_data_ll",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 20,
       "webTotal": 19,
@@ -341,7 +282,7 @@
       "name": "cell_withfx",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 9,
       "webTotal": 9,
@@ -354,24 +295,54 @@
       "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 208,
-      "webTotal": 195,
-      "totalRatio": 0.94
+      "webTotal": 197,
+      "totalRatio": 0.95
     },
     {
       "name": "ch6_bizet",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 208,
-      "webTotal": 181,
-      "totalRatio": 0.87
+      "webTotal": 203,
+      "totalRatio": 0.98
+    },
+    {
+      "name": "cloud_beat",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 208,
+      "webTotal": 205,
+      "totalRatio": 0.99
+    },
+    {
+      "name": "compus_beats",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 24,
+      "webTotal": 21,
+      "totalRatio": 0.88
+    },
+    {
+      "name": "crossloop",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 9,
+      "webTotal": 9,
+      "totalRatio": 1
     },
     {
       "name": "dark_neon",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 45,
       "webTotal": 43,
@@ -381,7 +352,7 @@
       "name": "data_bare",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 20,
       "webTotal": 19,
@@ -391,7 +362,7 @@
       "name": "data_ll",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 20,
       "webTotal": 19,
@@ -401,10 +372,20 @@
       "name": "det_tb303",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 8,
       "webTotal": 8,
+      "totalRatio": 1
+    },
+    {
+      "name": "dice_hoist",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 6,
+      "webTotal": 6,
       "totalRatio": 1
     },
     {
@@ -428,6 +409,16 @@
       "totalRatio": 1
     },
     {
+      "name": "dnb_det",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 16,
+      "webTotal": 16,
+      "totalRatio": 1
+    },
+    {
       "name": "e2e_03_fx",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
@@ -438,10 +429,20 @@
       "totalRatio": 1
     },
     {
-      "name": "e2e_07_fixed",
+      "name": "e2e_04_control_slide",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
       "sequenceMatch": null,
+      "isPrng": true,
+      "desktopTotal": 3,
+      "webTotal": 3,
+      "totalRatio": 1
+    },
+    {
+      "name": "e2e_07_fixed",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 21,
       "webTotal": 21,
@@ -451,31 +452,31 @@
       "name": "e2e_07_scoping",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 14,
-      "webTotal": 19,
-      "totalRatio": 1.36
+      "webTotal": 21,
+      "totalRatio": 1.5
     },
     {
       "name": "e2e_07_scoping_long",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 14,
-      "webTotal": 19,
-      "totalRatio": 1.36
+      "webTotal": 21,
+      "totalRatio": 1.5
     },
     {
       "name": "echo_drama",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 17,
-      "webTotal": 15,
-      "totalRatio": 0.88
+      "webTotal": 17,
+      "totalRatio": 1
     },
     {
       "name": "filtered_dnb_det",
@@ -494,14 +495,14 @@
       "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 16,
-      "webTotal": 14,
-      "totalRatio": 0.88
+      "webTotal": 16,
+      "totalRatio": 1
     },
     {
       "name": "fix460data",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 20,
       "webTotal": 19,
@@ -511,7 +512,7 @@
       "name": "fix460ll",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 20,
       "webTotal": 19,
@@ -521,7 +522,7 @@
       "name": "fix461",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 9,
       "webTotal": 9,
@@ -531,11 +532,11 @@
       "name": "fm_noise",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 10,
-      "webTotal": 13,
-      "totalRatio": 1.3
+      "webTotal": 10,
+      "totalRatio": 1
     },
     {
       "name": "fxloop",
@@ -578,6 +579,16 @@
       "totalRatio": 1
     },
     {
+      "name": "hihat",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 52,
+      "webTotal": 50,
+      "totalRatio": 0.96
+    },
+    {
       "name": "idm_breakbeat",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
@@ -586,6 +597,16 @@
       "desktopTotal": 42,
       "webTotal": 42,
       "totalRatio": 1
+    },
+    {
+      "name": "idm_simple",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 46,
+      "webTotal": 44,
+      "totalRatio": 0.96
     },
     {
       "name": "inline",
@@ -601,7 +622,7 @@
       "name": "inthread_sleep_hoist",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 15,
       "webTotal": 14,
@@ -611,7 +632,7 @@
       "name": "iso_control",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 3,
       "webTotal": 3,
@@ -621,7 +642,7 @@
       "name": "iso_density_fix",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 6,
       "webTotal": 6,
@@ -631,31 +652,101 @@
       "name": "iso_density_real",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 6,
-      "webTotal": 4,
-      "totalRatio": 0.67
+      "webTotal": 6,
+      "totalRatio": 1
     },
     {
       "name": "iso_density2",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 1,
-      "webTotal": 4,
-      "totalRatio": 4
+      "webTotal": 6,
+      "totalRatio": 6
     },
     {
       "name": "iso_density3",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 1,
+      "webTotal": 6,
+      "totalRatio": 6
+    },
+    {
+      "name": "line_repro",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 4,
       "webTotal": 4,
-      "totalRatio": 4
+      "totalRatio": 1
+    },
+    {
+      "name": "line_repro_postfix",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 4,
+      "webTotal": 4,
+      "totalRatio": 1
+    },
+    {
+      "name": "lorezzed",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 209,
+      "webTotal": 200,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "lz1_synth_attack",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 68,
+      "webTotal": 67,
+      "totalRatio": 0.99
+    },
+    {
+      "name": "lz2_look_times",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 73,
+      "webTotal": 69,
+      "totalRatio": 0.95
+    },
+    {
+      "name": "lz3_fx_in_times",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 41,
+      "webTotal": 39,
+      "totalRatio": 0.95
+    },
+    {
+      "name": "lz4_noreps",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 41,
+      "webTotal": 39,
+      "totalRatio": 0.95
     },
     {
       "name": "mod_303_phade",
@@ -671,7 +762,7 @@
       "name": "monday_blues",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 88,
       "webTotal": 85,
@@ -686,6 +777,16 @@
       "desktopTotal": 8,
       "webTotal": 8,
       "totalRatio": 1
+    },
+    {
+      "name": "orchard_improv",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 269,
+      "webTotal": 264,
+      "totalRatio": 0.98
     },
     {
       "name": "pA",
@@ -718,6 +819,16 @@
       "totalRatio": 1
     },
     {
+      "name": "pB",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 14,
+      "webTotal": 14,
+      "totalRatio": 1
+    },
+    {
       "name": "pInline",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
@@ -725,6 +836,16 @@
       "isPrng": true,
       "desktopTotal": 14,
       "webTotal": 14,
+      "totalRatio": 1
+    },
+    {
+      "name": "pRand",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 10,
+      "webTotal": 10,
       "totalRatio": 1
     },
     {
@@ -798,6 +919,86 @@
       "totalRatio": 0.97
     },
     {
+      "name": "r1_toplevel_rrandi",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 10,
+      "webTotal": 10,
+      "totalRatio": 1
+    },
+    {
+      "name": "r10",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 6,
+      "webTotal": 6,
+      "totalRatio": 1
+    },
+    {
+      "name": "r11",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 6,
+      "webTotal": 6,
+      "totalRatio": 1
+    },
+    {
+      "name": "r12",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 12,
+      "webTotal": 12,
+      "totalRatio": 1
+    },
+    {
+      "name": "r13",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 12,
+      "webTotal": 12,
+      "totalRatio": 1
+    },
+    {
+      "name": "r2_fx_wrap",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 10,
+      "webTotal": 10,
+      "totalRatio": 1
+    },
+    {
+      "name": "r3_nested_times",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 9,
+      "webTotal": 9,
+      "totalRatio": 1
+    },
+    {
+      "name": "r4_mixed_ranges",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 40,
+      "webTotal": 40,
+      "totalRatio": 1
+    },
+    {
       "name": "r430",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
@@ -828,10 +1029,60 @@
       "totalRatio": 1
     },
     {
+      "name": "r5_mini_orchard",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 6,
+      "webTotal": 6,
+      "totalRatio": 1
+    },
+    {
+      "name": "r6_ifelse",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 8,
+      "webTotal": 8,
+      "totalRatio": 1
+    },
+    {
+      "name": "r7_nestedif",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 8,
+      "webTotal": 8,
+      "totalRatio": 1
+    },
+    {
+      "name": "r8_inlineif",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 8,
+      "webTotal": 8,
+      "totalRatio": 1
+    },
+    {
+      "name": "r9_zerotimes",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 7,
+      "webTotal": 7,
+      "totalRatio": 1
+    },
+    {
       "name": "reich_phase",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 89,
       "webTotal": 87,
@@ -871,11 +1122,21 @@
       "name": "reverb_long",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 5,
       "webTotal": 5,
       "totalRatio": 1
+    },
+    {
+      "name": "selfcount",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 113,
+      "webTotal": 108,
+      "totalRatio": 0.96
     },
     {
       "name": "snippet",
@@ -883,9 +1144,19 @@
       "structureVerdict": "STRUCTURE-MATCH",
       "sequenceMatch": true,
       "isPrng": true,
-      "desktopTotal": 16,
-      "webTotal": 14,
-      "totalRatio": 0.88
+      "desktopTotal": 160,
+      "webTotal": 155,
+      "totalRatio": 0.97
+    },
+    {
+      "name": "sonic_dreams",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 32,
+      "webTotal": 32,
+      "totalRatio": 1
     },
     {
       "name": "sopts",
@@ -898,14 +1169,44 @@
       "totalRatio": 1
     },
     {
+      "name": "sq_A_nodensity",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 27,
+      "webTotal": 26,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "square_skit",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 133,
+      "webTotal": 130,
+      "totalRatio": 0.98
+    },
+    {
       "name": "sw_acid",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
       "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 121,
-      "webTotal": 117,
-      "totalRatio": 0.97
+      "webTotal": 116,
+      "totalRatio": 0.96
+    },
+    {
+      "name": "sw_ambient",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 8,
+      "webTotal": 8,
+      "totalRatio": 1
     },
     {
       "name": "sw_ambient_experiment",
@@ -944,8 +1245,8 @@
       "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 314,
-      "webTotal": 299,
-      "totalRatio": 0.95
+      "webTotal": 301,
+      "totalRatio": 0.96
     },
     {
       "name": "sw_ch7_random_streams",
@@ -958,14 +1259,24 @@
       "totalRatio": 0.97
     },
     {
+      "name": "sw_cloud_beat",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 168,
+      "webTotal": 164,
+      "totalRatio": 0.98
+    },
+    {
       "name": "sw_compus_beats",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
       "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 26,
-      "webTotal": 26,
-      "totalRatio": 1
+      "webTotal": 24,
+      "totalRatio": 0.92
     },
     {
       "name": "sw_crushed",
@@ -986,6 +1297,26 @@
       "desktopTotal": 18,
       "webTotal": 44,
       "totalRatio": 2.44
+    },
+    {
+      "name": "sw_e2e_05_postfix",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 18,
+      "webTotal": 44,
+      "totalRatio": 2.44
+    },
+    {
+      "name": "sw_e2e_06_random",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 11,
+      "webTotal": 11,
+      "totalRatio": 1
     },
     {
       "name": "sw_echo_drama",
@@ -1048,6 +1379,16 @@
       "totalRatio": 1
     },
     {
+      "name": "sw_lorezzed",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 146,
+      "webTotal": 137,
+      "totalRatio": 0.94
+    },
+    {
       "name": "sw_ocean",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
@@ -1058,6 +1399,16 @@
       "totalRatio": 1
     },
     {
+      "name": "sw_orchard_improv",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 142,
+      "webTotal": 134,
+      "totalRatio": 0.94
+    },
+    {
       "name": "sw_rerezzed",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
@@ -1066,6 +1417,16 @@
       "desktopTotal": 49,
       "webTotal": 47,
       "totalRatio": 0.96
+    },
+    {
+      "name": "sw_shufflit",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 126,
+      "webTotal": 122,
+      "totalRatio": 0.97
     },
     {
       "name": "sw_sonic_dreams",
@@ -1084,8 +1445,8 @@
       "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 175,
-      "webTotal": 169,
-      "totalRatio": 0.97
+      "webTotal": 168,
+      "totalRatio": 0.96
     },
     {
       "name": "sw_time_machine",
@@ -1094,8 +1455,8 @@
       "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 157,
-      "webTotal": 147,
-      "totalRatio": 0.94
+      "webTotal": 150,
+      "totalRatio": 0.96
     },
     {
       "name": "sw_tron_bike",
@@ -1111,7 +1472,7 @@
       "name": "syncer",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": true,
       "desktopTotal": 26,
       "webTotal": 24,
@@ -1121,11 +1482,31 @@
       "name": "timing",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 12,
       "webTotal": 11,
       "totalRatio": 0.92
+    },
+    {
+      "name": "tron_fc",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": null,
+      "isPrng": true,
+      "desktopTotal": 2,
+      "webTotal": 2,
+      "totalRatio": 1
+    },
+    {
+      "name": "tron_fc16",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": true,
+      "desktopTotal": 3,
+      "webTotal": 3,
+      "totalRatio": 1
     },
     {
       "name": "warmup",
@@ -1135,6 +1516,16 @@
       "isPrng": false,
       "desktopTotal": 2,
       "webTotal": 2,
+      "totalRatio": 1
+    },
+    {
+      "name": "with_sample_bpm",
+      "verdict": "EVENT-MATCH",
+      "structureVerdict": "STRUCTURE-MATCH",
+      "sequenceMatch": true,
+      "isPrng": false,
+      "desktopTotal": 6,
+      "webTotal": 6,
       "totalRatio": 1
     },
     {
@@ -1151,7 +1542,7 @@
       "name": "wobble_short",
       "verdict": "EVENT-MATCH",
       "structureVerdict": "STRUCTURE-MATCH",
-      "sequenceMatch": null,
+      "sequenceMatch": true,
       "isPrng": false,
       "desktopTotal": 5,
       "webTotal": 5,

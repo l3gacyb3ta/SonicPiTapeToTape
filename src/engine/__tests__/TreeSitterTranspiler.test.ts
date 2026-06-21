@@ -43,6 +43,14 @@ function __spMul(a: unknown, b: unknown): unknown {
   if (typeof a === 'number' && __spIsRing(b)) return (b as Ring<any>).repeat(a)
   return (a as number) * (b as number)
 }
+// SP169/#603 — mirror of the Sandbox __spSize helper.
+function __spSize(x: any): number | undefined {
+  if (x == null) return 0
+  if (typeof x === 'string' || Array.isArray(x)) return x.length
+  if (__spIsRing(x)) return (x as Ring<any>).length
+  if (typeof x === 'object') return Object.keys(x).length
+  return x.length
+}
 // Resolve WASM paths for Node.js test environment
 const base = new URL('../../..', import.meta.url).pathname
 const tsWasm = base + 'node_modules/web-tree-sitter/tree-sitter.wasm'
@@ -87,6 +95,42 @@ end`)
 end`)
       expect(result.code).toMatch(/const __times_\d+ = 4/)
       expect(result.code).toMatch(/for \(let _i = 0; _i < __times_\d+; _i\+\+\)/)
+    })
+  })
+
+  describe('#573: N.times as an enumerator (no block) is valid JS', () => {
+    it('`N.times.map { }` emits an index array, NOT invalid `N.times()`', () => {
+      const result = treeSitterTranspile('a = 8.times.map { |i| i * 2 }')
+      expect(result.ok).toBe(true)
+      // 8.times() (the bug) is invalid JS — `8.` is a float literal. Must be an array.
+      expect(result.code).not.toMatch(/\b8\.times\(/)
+      expect(result.code).toContain('Array.from({ length: 8 }')
+      expect(result.code).toContain('.map(')
+    })
+
+    it('`N.times.to_a` and `N.times.map { }.ring` transpile ok', () => {
+      expect(treeSitterTranspile('r = 4.times.to_a').ok).toBe(true)
+      expect(treeSitterTranspile('x = 3.times.map { |i| i }.ring').ok).toBe(true)
+    })
+
+    it('block forms are unchanged (still a for-loop)', () => {
+      const brace = treeSitterTranspile('8.times { play 60 }')
+      const doEnd = treeSitterTranspile('8.times do\n  play 60\nend')
+      expect(brace.ok).toBe(true)
+      expect(doEnd.ok).toBe(true)
+      expect(brace.code).toMatch(/for \(let _i = 0; _i < __times_\d+; _i\+\+\)/)
+      expect(doEnd.code).toMatch(/for \(let _i = 0; _i < __times_\d+; _i\+\+\)/)
+    })
+
+    it('the bhairav_tabla shape (`8.times.map { … }.ring` inside define) no longer rejects the program', () => {
+      const result = treeSitterTranspile(`define :pat do
+  8.times.map { tablas.choose }.ring
+end
+live_loop :t do
+  p = pat
+  sleep 1
+end`)
+      expect(result.ok).toBe(true)
     })
   })
 
@@ -1223,6 +1267,79 @@ end`)
       expect(result.code).toContain('n = synths[0]')
       // Persistence registrar keeps the PLAIN string key (#215 cross-eval seed).
       expect(result.code).toContain('define("synths", __spdef_synths)')
+    })
+
+    it('#575: a define called in expression position (RHS) is invoked, not left bare', () => {
+      // `p = pat` must CALL the define (and use its return value), not leave a
+      // bare reference. The historic gate only transformed statement-position
+      // calls, so `p = pat` produced `p = pat` (undefined) and the loop was silent.
+      const result = treeSitterTranspile(`define :pat do
+  (ring :a, :b, :c)
+end
+live_loop :l do
+  p = pat
+  play (note p.tick)
+  sleep 1
+end`)
+      expect(result.ok).toBe(true)
+      // RHS is the call, not the bare identifier.
+      expect(result.code).toContain('p = __spdef_pat(__b)')
+      expect(result.code).not.toMatch(/\bp = pat\b/)
+    })
+
+    it('#575: a define body returns its last expression (Ruby implicit return)', () => {
+      // Without an explicit return the function evaluates to undefined, so an
+      // expression-position caller gets nothing.
+      const result = treeSitterTranspile(`define :pat do
+  (ring :a, :b, :c)
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).toContain('return (__b.ring("a", "b", "c"))')
+    })
+
+    it('#575: a local variable still shadows a same-named define (locals win)', () => {
+      // Ruby: a bare identifier is a local read when a local of that name
+      // exists, else a method call. `pat = 5; play pat` must read 5 even though
+      // `define :pat` exists — the define must NOT be called here.
+      const result = treeSitterTranspile(`define :pat do
+  1
+end
+live_loop :l do
+  pat = 5
+  play pat
+  sleep 1
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).toContain('pat = 5')
+      // play reads the plain local, not the namespaced define call.
+      expect(result.code).toContain('__b.play(pat,')
+      expect(result.code).not.toContain('__b.play(__spdef_pat(__b)')
+    })
+
+    it('#575: a define call as a method receiver works in expression position', () => {
+      // `melody.tick` (no intermediate local) must call the define then tick it.
+      const result = treeSitterTranspile(`define :melody do
+  (ring 60, 62, 64)
+end
+live_loop :l do
+  play melody.tick
+  sleep 1
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).toContain('__spdef_melody(__b)?.at(__b.tick())')
+    })
+
+    it('#575: a define whose last statement is a loop is NOT illegally returned', () => {
+      // A multi-line statement block has no JS-expression value; prefixing
+      // `return` would be a syntax error that fails the whole program (SV19).
+      const result = treeSitterTranspile(`define :spray do
+  4.times do
+    play 60
+    sleep 0.25
+  end
+end`)
+      expect(result.ok).toBe(true)
+      expect(result.code).not.toMatch(/return\s+(\{|for|while)/)
     })
 
     it('begin/rescue', () => {
@@ -2580,6 +2697,41 @@ end`)
       // The cue/gate machinery is top-level only (SP118); the inner in_thread
       // keeps the un-gated path.
       expect(r.code).not.toContain('__startGate')
+    })
+  })
+
+  describe('SP169/#603: .length/.size/.count route through __spSize (Hash literals)', () => {
+    it('emits __spSize(...) for .length / .size / .count, not raw .length', () => {
+      for (const m of ['length', 'size', 'count']) {
+        const r = treeSitterTranspile(`x = h.${m}`)
+        expect(r.ok).toBe(true)
+        expect(r.code).toContain('__spSize(h)')
+        // The old raw-.length emission (`h.length`) must be gone.
+        expect(r.code).not.toMatch(/\bh\.length\b/)
+      }
+    })
+
+    it('__spSize counts Hash pairs (the bug: a JS object has no .length)', () => {
+      const hash = { a: 1, b: 2, c: 3 }
+      // Raw .length on the lowered object is undefined → NaN downstream (SP169).
+      expect((hash as any).length).toBeUndefined()
+      expect(__spSize(hash)).toBe(3)
+      // The 39_blues_machine chain: `g_max = g_licks.length - 1` must be finite.
+      expect(__spSize(hash)! - 1).toBe(2)
+    })
+
+    it('__spSize keeps Array / Ring / String semantics (the 3 receiver types that already worked)', () => {
+      expect(__spSize([10, 20, 30])).toBe(3)
+      expect(__spSize(ring(1, 2, 3, 4))).toBe(4)
+      expect(__spSize('hello')).toBe(5)
+    })
+
+    it('__spSize is silent-safe on nil and counts pairs even for a {length:} hash', () => {
+      expect(__spSize(null)).toBe(0)
+      expect(__spSize(undefined)).toBe(0)
+      // A Hash whose key happens to be :length → Ruby #length is the PAIR count,
+      // not the stored value. __spSize routes any non-Array/Ring object to keys.
+      expect(__spSize({ length: 5, other: 1 })).toBe(2)
     })
   })
 })

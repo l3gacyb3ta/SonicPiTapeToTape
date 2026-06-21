@@ -35,6 +35,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const TR = resolve(ROOT, 'test_results')
 
+// --public (or DASHBOARD_PUBLIC=1) → user-facing build: drop internal catalogue
+// codes, PRNG / random-walk framing, and methodology prose. Verdict counts,
+// spectrogram links, dates and commit IDs stay.
+const PUBLIC = process.argv.includes('--public') || process.env.DASHBOARD_PUBLIC === '1'
+
 function readJson<T>(name: string): T | null {
   const p = join(TR, name)
   if (!existsSync(p)) return null
@@ -97,7 +102,7 @@ function pitchCard(title: string, count: number, viewer: string, m: PitchManifes
   const chips = [
     chip('MATCH', c.match, 'pass'),
     chip('EVENT-MATCH', c.eventMatch ?? 0, 'pass'), // SV61 tiebreaker pass (#377/#378)
-    chip('PRNG-variant', c.prngVariant, 'accent'),
+    chip(PUBLIC ? 'VARIANT' : 'PRNG-variant', c.prngVariant, 'accent'),
     chip('DIVERGE', c.diverge, 'fail'),
     chip('INCONCL', c.inconcl, 'incon'),
     chip('ERROR', c.error, 'faildark'),
@@ -109,10 +114,12 @@ function pitchCard(title: string, count: number, viewer: string, m: PitchManifes
   const stamp = m.generatedAt ? new Date(m.generatedAt).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : ''
   return `<a class="pool-card" href="${viewer}">
     <div class="pool-head"><span class="pool-title">${esc(title)}</span><span class="pool-n">${c.totalRows}</span></div>
-    <div class="scheme tier1">Tier-1 pitch parity · the verdict (SV46)</div>
+    <div class="scheme tier1">${PUBLIC ? 'Pitch parity &middot; the verdict' : 'Tier-1 pitch parity · the verdict (SV46)'}</div>
     <div class="chips">${chips}</div>
     <div class="pool-foot">
-      <span><b>${c.prngFreeReal}</b> real divergence${c.prngFreeReal === 1 ? '' : 's'} · ${c.prng} PRNG-driven (graded by event-parity, SV69) · ${c.heavy} heavy-tool-fail</span>
+      <span>${PUBLIC
+        ? `<b>${c.diverge}</b> differ${c.diverge === 1 ? 's' : ''} from desktop`
+        : `<b>${c.prngFreeReal}</b> real divergence${c.prngFreeReal === 1 ? '' : 's'} · ${c.prng} PRNG-driven (graded by event-parity, SV69) · ${c.heavy} heavy-tool-fail`}</span>
       <span class="stamp">${esc(stamp)}</span>
     </div>
   </a>`
@@ -137,7 +144,7 @@ function consistencyCard(title: string, count: number, viewer: string, m: Consis
   const cap = m.captured != null ? `${m.captured}/${m.total} captured` : ''
   return `<a class="pool-card" href="${viewer}">
     <div class="pool-head"><span class="pool-title">${esc(title)}</span><span class="pool-n">${m.total}</span></div>
-    <div class="scheme tier23">⚠ consistency score · Tier-2/3 timbre+level · NOT pitch (SV46)</div>
+    <div class="scheme tier23">${PUBLIC ? '⚠ consistency score &middot; timbre + level (not pitch)' : '⚠ consistency score · Tier-2/3 timbre+level · NOT pitch (SV46)'}</div>
     <div class="chips">${chips}</div>
     <div class="pool-foot">
       <span>${esc([cap, sub].filter(Boolean).join(' · '))}</span>
@@ -161,11 +168,11 @@ function eventDiffCard(m: EventDiffManifest | null): string {
   ].filter(Boolean).join('')
   const stamp = m.generatedAt ? new Date(m.generatedAt).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : ''
   return `<a class="pool-card" href="event-diff.html">
-    <div class="pool-head"><span class="pool-title">Event Diff (desktop ↔ web /s_new)</span><span class="pool-n">${c.total}</span></div>
-    <div class="scheme tierE">event-level structure · /s_new count · order · onset (no audio) · #446</div>
+    <div class="pool-head"><span class="pool-title">${PUBLIC ? 'Event Diff (note-level)' : 'Event Diff (desktop ↔ web /s_new)'}</span><span class="pool-n">${c.total}</span></div>
+    <div class="scheme tierE">${PUBLIC ? 'note-level comparison &middot; count, order, timing (no audio)' : 'event-level structure · /s_new count · order · onset (no audio) · #446'}</div>
     <div class="chips">${chips}</div>
     <div class="pool-foot">
-      <span>desktop via scsynth <code>/dumpOSC</code> · web via OSC trace · structure + onset + per-tick notes diffed (PRNG values now match desktop, SV69)</span>
+      <span>${PUBLIC ? 'desktop &harr; web note events compared (no audio)' : 'desktop via scsynth <code>/dumpOSC</code> · web via OSC trace · structure + onset + per-tick notes diffed (PRNG values now match desktop, SV69)'}</span>
       <span class="stamp">${esc(stamp)}</span>
     </div>
   </a>`
@@ -311,7 +318,9 @@ const html = `<!doctype html>
 ${navBlock('desktop ↔ web parity · #446 event diff')}
 <div class="wrap">
   <h1>SonicPi.js — Parity Dashboard</h1>
-  <p class="sub">Desktop Sonic Pi ↔ browser engine, every example pool. Built <b>${esc(now)}</b> from the freshly-captured manifests. <b>Tier-1 pitch is the verdict</b> (SV46); consistency scores are timbre/level support only.</p>
+  <p class="sub">${PUBLIC
+    ? `Desktop Sonic Pi &harr; browser engine, every example pool. Built <b>${esc(now)}</b>. <b>Pitch is the verdict</b>; consistency scores are timbre/level support only.`
+    : `Desktop Sonic Pi ↔ browser engine, every example pool. Built <b>${esc(now)}</b> from the freshly-captured manifests. <b>Tier-1 pitch is the verdict</b> (SV46); consistency scores are timbre/level support only.`}</p>
 
   ${gateHero(gate)}
 
@@ -332,9 +341,11 @@ ${navBlock('desktop ↔ web parity · #446 event diff')}
     ${eventDiffCard(eventDiff)}
   </div>
 
-  <div class="caveat">
+  ${PUBLIC ? `<div class="caveat">
+    <b>Why two schemes?</b> Official + book are graded on <b>pitch</b> (note progression, the verdict — a match means the right notes at the right time). E2E + community are graded on a <b>consistency score</b> (timbre &amp; level similarity), which is blind to wrong melody and can never stand as a musical-correctness verdict on its own. A HIGH there means "sounds tonally/loudness-similar to desktop", not "plays the right notes".
+  </div>` : `<div class="caveat">
     <b>Why two schemes?</b> Official + book are graded on <b>Tier-1 pitch</b> (note progression, the verdict — a MATCH means the right notes at the right time). E2E + community are graded on a <b>consistency score</b> (RMS/peak ratio + mel-L2 + MFCC = timbre &amp; level), which per the project's 6-Tier standard is <b>blind to wrong melody</b> and can never stand as a musical-correctness verdict. A HIGH there means "sounds tonally/loudness-similar to desktop", not "plays the right notes". MFCC is further confounded by the known ~0.5× web gain (#268) + reverb tail. PRNG-driven pieces are now graded by <code>/s_new</code> event-parity (EPIC #531 — the engine's random walk matches desktop's frozen rand-stream note-for-note, SV69, superseding the old SV49 non-goal); a PRNG divergence is a real divergence, tracked in #537.
-  </div>
+  </div>`}
 
   <div class="links">
     <a href="examples-sweep.html">official sweep →</a>
@@ -343,13 +354,13 @@ ${navBlock('desktop ↔ web parity · #446 event diff')}
     <a href="community.html">community + forum →</a>
     <a href="launch-gate.html">🚦 launch gate →</a>
     <a href="fx-inspector.html">fx a/b inspector →</a>
-    <a href="event-diff.html">event diff (/s_new) →</a>
-    <a href="experiments.html">🧪 experiments (#513 use_sample_bpm tempo) →</a>
+    <a href="event-diff.html">${PUBLIC ? 'event diff (note-level) →' : 'event diff (/s_new) →'}</a>
+    ${PUBLIC ? '' : `<a href="experiments.html">🧪 experiments (#513 use_sample_bpm tempo) →</a>
     <a href="mono-sample-sp107.html">SP107 mono-sample investigation →</a>
-    <a href="raw-lpf.html">raw-lpf investigation →</a>
+    <a href="raw-lpf.html">raw-lpf investigation →</a>`}
   </div>
 
-  <footer>Generated by <code>tools/build-aggregate-index.ts</code> from test_results/{examples-sweep,book-examples-sweep,e2e,community,launch-gate}.json. Re-run after any sweep to refresh.</footer>
+  ${PUBLIC ? '' : `<footer>Generated by <code>tools/build-aggregate-index.ts</code> from test_results/{examples-sweep,book-examples-sweep,e2e,community,launch-gate}.json. Re-run after any sweep to refresh.</footer>`}
 </div>
 </body>
 </html>

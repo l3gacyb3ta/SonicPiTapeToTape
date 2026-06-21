@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SuperSonicBridge } from '../SuperSonicBridge'
+import { MIXER } from '../config'
 
 /** Extract the OSC address string from a raw OSC bundle (starts after 16-byte header + 4-byte size). */
 function extractBundleAddress(bundle: Uint8Array): string {
@@ -90,6 +91,47 @@ describe('SuperSonicBridge', () => {
     expect(mockSonic.node.connect).toHaveBeenCalled()
   })
 
+  // #579 — set_volume! over-attenuated web ~50×. Two compounding bugs:
+  // (1) the engine divided the 0-5 value by 5 (unity 1.0 → 0.2); (2) this
+  // method scaled BOTH scsynth pre_amp AND the Web Audio masterGainNode by the
+  // value, multiplying them (≈v²). The fix: 1.0 = unity, drive ONE stage
+  // (scsynth pre_amp), leave masterGainNode at unity.
+  it('setMasterVolume drives ONLY scsynth pre_amp, 1.0 = unity, no masterGain double-apply (#579)', async () => {
+    const { mockSonic, sent } = createMockSuperSonic()
+    ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
+
+    const bridge = new SuperSonicBridge()
+    await bridge.init()
+
+    // masterGainNode is the single GainNode created during init.
+    const gainNode = mockSonic.audioContext.createGain.mock.results[0].value
+
+    const lastPreAmp = (): number => {
+      const calls = sent.filter((c) => c.address === '/n_set' && c.args.includes('pre_amp'))
+      const args = calls[calls.length - 1].args
+      return args[args.indexOf('pre_amp') + 1] as number
+    }
+
+    // 1.0 = unity → pre_amp stays at the baseline (no-op).
+    bridge.setMasterVolume(1.0)
+    expect(lastPreAmp()).toBeCloseTo(MIXER.PRE_AMP, 6)
+
+    // 0.5 = half → pre_amp halved (NOT squared / collapsed).
+    bridge.setMasterVolume(0.5)
+    expect(lastPreAmp()).toBeCloseTo(MIXER.PRE_AMP * 0.5, 6)
+
+    // Boost (>1) is allowed up to 5 — a boost, not the old ÷5 attenuation.
+    bridge.setMasterVolume(2)
+    expect(lastPreAmp()).toBeCloseTo(MIXER.PRE_AMP * 2, 6)
+    bridge.setMasterVolume(10)
+    expect(lastPreAmp()).toBeCloseTo(MIXER.PRE_AMP * 5, 6) // clamped to 5
+
+    // The Web Audio masterGainNode must stay at unity — never driven by volume
+    // (it is UI-feedback-only). Driving it too caused the ≈v² collapse.
+    expect(gainNode.gain.setTargetAtTime).not.toHaveBeenCalled()
+    expect(gainNode.gain.value).toBe(1)
+  })
+
   it('triggerSynth queues message, flushMessages sends bundle', async () => {
     const { mockSonic, bundles } = createMockSuperSonic()
     ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
@@ -107,6 +149,39 @@ describe('SuperSonicBridge', () => {
     expect(mockSonic.sendOSC).toHaveBeenCalledTimes(1)
     const bundleStr = new TextDecoder().decode(bundles[0])
     expect(bundleStr).toContain('sonic-pi-beep')
+  })
+
+  it('slow-path triggerSynth (unloaded synthdef) auto-flushes its /s_new — first node not dropped (#570)', async () => {
+    const { mockSonic, bundles } = createMockSuperSonic()
+    ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
+
+    const bridge = new SuperSonicBridge()
+    await bridge.init()
+
+    // `dsaw` is NOT in COMMON_SYNTHDEFS → slow path (ensureSynthDefLoaded.then).
+    // The interpreter dispatches `play` fire-and-forget, so its synchronous
+    // end-of-iteration flush runs BEFORE this async load resolves. Without the
+    // in-`then` flush (#570), this /s_new would sit unsent until the NEXT flush
+    // (a one-shot run never flushes again → silence). It must auto-flush, so
+    // sendOSC fires with NO explicit flushMessages() call.
+    await bridge.triggerSynth('dsaw', 1.0, { note: 52, amp: 0.5 })
+    expect(mockSonic.sendOSC).toHaveBeenCalledTimes(1)
+    expect(new TextDecoder().decode(bundles[0])).toContain('sonic-pi-dsaw')
+  })
+
+  it('fast-path triggerSynth (preloaded synthdef) does NOT auto-flush — waits for the iteration flush (#570 scope guard)', async () => {
+    const { mockSonic } = createMockSuperSonic()
+    ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
+
+    const bridge = new SuperSonicBridge()
+    await bridge.init()
+
+    // `beep` IS preloaded → fast path → queues synchronously, sent only on the
+    // interpreter's own flush. The #570 fix must NOT change this (else every
+    // event flushes as its own bundle, breaking same-instant co-bundling that
+    // SP83/#567 rely on).
+    await bridge.triggerSynth('beep', 1.0, { note: 60, amp: 0.5 })
+    expect(mockSonic.sendOSC).not.toHaveBeenCalled()
   })
 
   it('drops non-finite numeric params before /s_new (#509 — NaN must not reach scsynth)', async () => {
@@ -338,7 +413,7 @@ describe('SuperSonicBridge', () => {
     expect(applied).toEqual(['hpf'])
   })
 
-  it('resetMixer /n_sets all five MIXER defaults plus three bypass clears', async () => {
+  it('resetMixer /n_sets all MIXER defaults, bypass clears, and slide clears (#582)', async () => {
     const { mockSonic, sent } = createMockSuperSonic()
     ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
     const bridge = new SuperSonicBridge()
@@ -349,13 +424,54 @@ describe('SuperSonicBridge', () => {
 
     const sets = sent.filter(m => m.address === '/n_set')
     expect(sets.length).toBe(1)
-    // All eight params packed into one /n_set call.
+    // All params packed into one /n_set call: 5 values + 3 bypass clears +
+    // 4 slide clears (#582 — slides reset to 0 so the reset snaps).
     const args = sets[0].args as Array<string | number>
     const paramNames = args.filter((_, i) => i > 0 && i % 2 === 1)
     expect(paramNames).toEqual([
       'amp', 'pre_amp', 'hpf', 'lpf', 'limiter_bypass',
       'hpf_bypass', 'lpf_bypass', 'leak_dc_bypass',
+      'pre_amp_slide', 'amp_slide', 'hpf_slide', 'lpf_slide',
     ])
+  })
+
+  // #581 — set_mixer_control! must accept *_slide glide times, else a sweep
+  // (`set_mixer_control! lpf: 30, lpf_slide: 16`) snaps instead of gliding.
+  it('setMixerControl accepts *_slide params (#581)', async () => {
+    const { mockSonic, sent } = createMockSuperSonic()
+    ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
+    const bridge = new SuperSonicBridge()
+    await bridge.init()
+    sent.length = 0
+
+    const applied = bridge.setMixerControl({ lpf: 30, lpf_slide: 16, pre_amp_slide: 0.5 })
+    expect(applied).toEqual(['lpf', 'lpf_slide', 'pre_amp_slide'])
+    const sets = sent.filter(m => m.address === '/n_set')
+    expect(sets.map(s => s.args[1])).toEqual(['lpf', 'lpf_slide', 'pre_amp_slide'])
+  })
+
+  // #582 — resetMixer must reset the CACHED gain state, not just the wire.
+  // Otherwise a UI pre-amp slider drag (setMixerPreAmp) after set_volume! +
+  // reset_mixer! re-multiplies by the stale currentMasterVolume.
+  it('resetMixer clears stale master volume so a later setMixerPreAmp is not re-attenuated (#582)', async () => {
+    const { mockSonic, sent } = createMockSuperSonic()
+    ;(globalThis as Record<string, unknown>).SuperSonic = vi.fn(() => mockSonic)
+    const bridge = new SuperSonicBridge()
+    await bridge.init()
+
+    const lastPreAmp = (): number => {
+      const calls = sent.filter((c) => c.address === '/n_set' && c.args.includes('pre_amp'))
+      const args = calls[calls.length - 1].args
+      return args[args.indexOf('pre_amp') + 1] as number
+    }
+
+    bridge.setMasterVolume(0.5)          // currentMasterVolume = 0.5
+    bridge.resetMixer()                  // must reset currentMasterVolume → 1
+    expect(lastPreAmp()).toBeCloseTo(MIXER.PRE_AMP, 6) // composed 1 × baseline, not 0.5×
+
+    // The UI pre-amp slider now lands at its raw value, not 0.5× of it.
+    bridge.setMixerPreAmp(0.5)
+    expect(lastPreAmp()).toBeCloseTo(0.5, 6) // 1 × 0.5, NOT stale 0.5 × 0.5 = 0.25
   })
 
   it('getScsynthInfo returns a config dict with sample-rate-derived fields', async () => {

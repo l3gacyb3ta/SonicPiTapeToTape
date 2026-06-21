@@ -583,6 +583,37 @@ describe('Pattern helpers (#211 Tier A)', () => {
     expect(steps.filter(s => s.tag === 'sleep').length).toBe(0)
   })
 
+  it('#577: a chord/array scales amp by 1/notes.size (desktop trigger_chord parity)', () => {
+    const b = new ProgramBuilder()
+    b.play([60, 64, 67], { amp: 0.3 })
+    const plays = b.build().filter(s => s.tag === 'play') as Array<{ opts: Record<string, number> }>
+    expect(plays.length).toBe(3)
+    // amp 0.3 / 3 notes = 0.1 per note (not the full 0.3, which would be 3× too loud)
+    for (const p of plays) expect(p.opts.amp).toBeCloseTo(0.1, 6)
+  })
+
+  it('#577: a chord with no explicit amp divides the default 1.0 across notes', () => {
+    const b = new ProgramBuilder()
+    b.play([60, 64, 67, 72])
+    const plays = b.build().filter(s => s.tag === 'play') as Array<{ opts: Record<string, number> }>
+    for (const p of plays) expect(p.opts.amp).toBeCloseTo(0.25, 6) // 1.0 / 4
+  })
+
+  it('#577: a single-note play is NOT amp-divided', () => {
+    const b = new ProgramBuilder()
+    b.play(60, { amp: 0.3 })
+    const play = b.build().find(s => s.tag === 'play') as { opts: Record<string, number> }
+    expect(play.opts.amp).toBeCloseTo(0.3, 6)
+  })
+
+  it('#577: a chord divides the resolved use_synth_defaults amp', () => {
+    const b = new ProgramBuilder()
+    b.use_synth_defaults({ amp: 0.6 })
+    b.play([60, 64, 67])
+    const plays = b.build().filter(s => s.tag === 'play') as Array<{ opts: Record<string, number> }>
+    for (const p of plays) expect(p.opts.amp).toBeCloseTo(0.2, 6) // 0.6 / 3
+  })
+
   it('play_pattern_timed cycles through times array (sleeps after every note, #404)', () => {
     const b = new ProgramBuilder()
     b.play_pattern_timed([60, 64, 67, 72], [0.25, 0.5])
@@ -673,6 +704,21 @@ describe('spread (Euclidean rhythm)', () => {
 
   it('spread(4, 4) is all true', () => {
     expect(spread(4, 4).toArray()).toEqual([true, true, true, true])
+  })
+
+  it('spread(s-1, s) places the lone rest at index 1, matching desktop (#597)', () => {
+    // Desktop core.rb `redistribute` (unshift/prepend) puts the single rest at
+    // index 1 — `X.XXX…` — NOT at the end (`XXX…X.` of a textbook Bjorklund).
+    // The wrong placement desynced the PRNG stream when a conditional draw was
+    // guarded by `spread(rrand_i, n).look` (#597 / SP167).
+    expect(spread(15, 16).toArray()).toEqual([
+      true, false, true, true, true, true, true, true,
+      true, true, true, true, true, true, true, true,
+    ])
+    expect(spread(2, 3).toArray()).toEqual([true, false, true])
+    expect(spread(7, 8).toArray()).toEqual([
+      true, false, true, true, true, true, true, true,
+    ])
   })
 
   it('spread with rotation shifts the pattern', () => {

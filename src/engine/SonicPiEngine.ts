@@ -14,7 +14,8 @@ import { createIsolatedExecutor, validateCode, type ScopeHandle } from './Sandbo
 import { autoTranspileDetailed } from './TreeSitterTranspiler'
 import { detectSp95Limitations } from './Sp95Lint'
 import { getExample, type Example } from './examples'
-import { initTreeSitter } from './TreeSitterTranspiler'
+import { initTreeSitter, isTreeSitterReady } from './TreeSitterTranspiler'
+import { CDN_DEFAULTS } from './cdn-manifest'
 
 /**
  * Matches SoundLayer.validateAndClamp output:
@@ -158,6 +159,11 @@ export class SonicPiEngine {
   private schedAheadTime: number
   /** Maps DSL nodeRef → SuperSonic nodeId for control messages */
   private nodeRefMap = new Map<number, number>()
+  /** SP153/#567: nodeRef → its /s_new audioTime, so a same-instant `control`
+   *  lands its /n_set strictly after the node's creation (else WASM inits a
+   *  *_slide Lag at the control target). Same lifecycle as nodeRefMap —
+   *  bounded (refs reused per iteration) and cleared on stop/hot-swap. */
+  private nodeCreationTime = new Map<number, number>()
   /** Reusable inner FX nodes — persists across loop iterations. See issue #70.
    *  `killTimer` is the pending virtual-time-scheduled kill handle (SV41) that
    *  frees this FX after kill_delay seconds of virtual time if no follow-up
@@ -183,6 +189,25 @@ export class SonicPiEngine {
    * one stream). Cleared/derived on the same lifecycle as loopTicks.
    */
   private loopRngState = new Map<string, { seed: number; idx: number; source: RandSource }>()
+  /**
+   * #593/SV75: the most recently registered `__inline` construct in the current
+   * evaluate's registration pass (reset to null before each `sandbox.execute`).
+   * Inline constructs (`__run_once`, a top-level bare `loop`) all model desktop's
+   * SINGLE continuous main-thread stream. The FIRST one snapshots topLevelBuilder;
+   * each LATER one must continue the SAME stream AFTER the earlier one's draws —
+   * see `inlineRngInheritFrom`.
+   */
+  private lastInlineConstruct: string | null = null
+  /**
+   * #593/SV75: a deferred-seed link `loopName → previous-inline-construct`. A
+   * later inline construct does NOT snapshot topLevelBuilder at registration
+   * (that state is unchanged by the earlier construct's separate per-build
+   * builder, so it would REPLAY those draws). Instead it inherits the previous
+   * inline construct's POST-build rng state at its FIRST build (once only),
+   * relying on the SV70/SV21/SP165 build-order guarantee. Cleared with
+   * loopRngState on a fresh Run.
+   */
+  private inlineRngInheritFrom = new Map<string, string>()
   /** Per-loop tick counters — persisted across iterations so ring.tick() advances correctly */
   private loopTicks = new Map<string, Map<string, number>>()
   /** Per-loop beat counter — persisted across iterations so current_beat keeps growing (#226) */
@@ -201,6 +226,14 @@ export class SonicPiEngine {
    * must not re-gate a running loop. Mirrors loopSynced (same teardown safety).
    */
   private startGated = new Set<string>()
+  /**
+   * #591: loops that have already called their first-iteration `__synthThunk`.
+   * Creation-only, like startGated — the thunk picks up the var-dependent synth
+   * __run_once drew after the loop registered; once task.currentSynth holds it,
+   * every later iteration re-seeds from it. Cleared on teardown / per-loop on
+   * removal, alongside startGated.
+   */
+  private stateSnapshotted = new Set<string>()
   /**
    * Build-phase nesting depth (issue #198). Incremented around each
    * synchronous builderFn invocation. > 0 means we are currently
@@ -328,17 +361,27 @@ export class SonicPiEngine {
   constructor(options?: {
     bridge?: SuperSonicBridgeOptions
     schedAheadTime?: number
-    /** URL of the frozen rand stream (EPIC #531). Defaults to the Vite-served
-     *  `/rand-stream.wav`; a library consumer serving it elsewhere overrides this,
-     *  mirroring the tree-sitter wasm URL override. */
+    /** URL of the frozen rand stream (EPIC #531). #604/SV80: defaults to the
+     *  pinned CDN copy so a bare consumer needs no asset hosting; a consumer that
+     *  serves it locally (e.g. the app at `/rand-stream.wav`) overrides this. */
     randStreamUrl?: string
+    /** URL of the tree-sitter core WASM runtime (#604/SV80). Defaults to the
+     *  pinned CDN copy; override to serve it same-origin. */
+    treeSitterWasmUrl?: string
+    /** URL of the compiled Ruby grammar WASM (#604/SV80). Defaults to the pinned
+     *  CDN copy; override to serve it same-origin. */
+    rubyWasmUrl?: string
   }) {
     this.bridgeOptions = options?.bridge ?? {}
     this.schedAheadTime = options?.schedAheadTime ?? DEFAULT_SCHED_AHEAD_TIME
-    this.randStreamUrl = options?.randStreamUrl ?? '/rand-stream.wav'
+    this.randStreamUrl = options?.randStreamUrl ?? CDN_DEFAULTS.randStream
+    this.treeSitterWasmUrl = options?.treeSitterWasmUrl ?? CDN_DEFAULTS.treeSitterWasm
+    this.rubyWasmUrl = options?.rubyWasmUrl ?? CDN_DEFAULTS.rubyWasm
   }
 
   private readonly randStreamUrl: string
+  private readonly treeSitterWasmUrl: string
+  private readonly rubyWasmUrl: string
 
   /**
    * Initialize the engine. Must be called once before `evaluate()`.
@@ -382,9 +425,14 @@ export class SonicPiEngine {
 
     // Only init tree-sitter in browser environments where WASM is served via HTTP.
     // In Node (tests), tree-sitter must be initialized explicitly with file paths.
+    // #604/SV80: the engine drives tree-sitter init itself with CDN-default URLs,
+    // so a bare consumer needs no asset hosting. init() awaits this promise below,
+    // so by the time init() resolves the transpiler is ready (SV81) — the old
+    // per-consumer warm-up retry loop is no longer needed.
     const isBrowser = typeof window !== 'undefined'
     const treeSitterInit = isBrowser
-      ? initTreeSitter().catch(() => { /* Non-fatal — regex fallback */ })
+      ? initTreeSitter({ treeSitterWasmUrl: this.treeSitterWasmUrl, rubyWasmUrl: this.rubyWasmUrl })
+          .catch(() => { /* Non-fatal — evaluate() surfaces a clear error if used */ })
       : Promise.resolve()
 
     // EPIC #531: load desktop's frozen rand stream before any builder is built.
@@ -425,6 +473,17 @@ export class SonicPiEngine {
   /** Whether audio output is available. False when SuperSonic failed to initialize. */
   get hasAudio(): boolean {
     return this.bridge !== null
+  }
+
+  /**
+   * Whether the Ruby→JS transpiler is ready (#604/SV81). Because `init()` awaits
+   * tree-sitter, this is true once `init()` resolves in a browser with the wasm
+   * reachable. A consumer that wants to gate "Run" on transpile-readiness checks
+   * this instead of warm-up-looping `evaluate('# warmup')` — a ready signal must
+   * reflect COMPLETION, not resource existence.
+   */
+  get transpilerReady(): boolean {
+    return isTreeSitterReady()
   }
 
   // Matches `use_sample_bpm`/`with_sample_bpm`/`sample_duration` followed by a
@@ -608,6 +667,7 @@ export class SonicPiEngine {
 
         this.loopBuilders.clear()
         this.loopRngState.clear()
+        this.inlineRngInheritFrom.clear() // #593: deferred inline-seed links
       }
 
       // Transpile: Ruby DSL → JS builder chain (TreeSitter only).
@@ -672,7 +732,11 @@ export class SonicPiEngine {
       let currentVolume = 1
       const set_volume = (vol: number) => {
         currentVolume = Math.max(0, Math.min(5, vol))
-        this.bridge?.setMasterVolume(currentVolume / 5) // normalize 0-5 → 0-1
+        // Pass the 0-5 value straight through: setMasterVolume treats 1.0 as
+        // unity (no-op) and scales the mixer pre_amp by it. The old `/5` mapped
+        // unity to 0.2 and (with the bridge double-apply) collapsed audio to
+        // near-silence (#579).
+        this.bridge?.setMasterVolume(currentVolume)
       }
       // Used by AudioInterpreter's setVolume step — same body as set_volume,
       // but exposed as a stable reference so the interpreter can update the
@@ -844,6 +908,13 @@ export class SonicPiEngine {
         // (`live_loop`/`in_thread`/`at`) → idPath `[0, n]`. Explicit marker, not
         // name-sniffing (mirrors `__startGate`; PARITY-GAPS GAP A §2 decision).
         let isInline = false
+        // #591: lazy synth source for a var-dependent / mid-PRNG `use_synth` (e.g.
+        // `choose(synths)`) this loop source-follows. The transpiler draws the synth
+        // ONCE into a `__sy_N` var in __run_once (after this loop registered, so the
+        // eager task.currentSynth is the stale default) and passes a thunk reading
+        // it. Called ONCE at the first iteration build — by then __run_once has run
+        // (SV70/SV21: same ordering that makes `play c` see __run_once's `c`).
+        let synthThunk: (() => string) | null = null
         // SP131/#481: a one-shot top-level in_thread (set by topLevelInThread).
         // Such a thread builds its ENTIRE body in ONE pass, so the build-time
         // `sync` await (which suspends the build until the cue) would batch every
@@ -866,6 +937,8 @@ export class SonicPiEngine {
           delayBeats = typeof builderFnOrOpts.delay === 'number' ? builderFnOrOpts.delay : 0
           startGate = (builderFnOrOpts.__startGate as string) ?? null
           isInline = builderFnOrOpts.__inline === true
+          synthThunk = typeof builderFnOrOpts.__synthThunk === 'function'
+            ? (builderFnOrOpts.__synthThunk as () => string) : null
           oneShotThread = builderFnOrOpts.__oneShotThread === true
           builderFn = maybeFn!
         }
@@ -935,8 +1008,26 @@ export class SonicPiEngine {
           // main thread's own stream, and (worse) consumed a gen_idx that the real
           // sibling loops then skipped — desyncing every default-seed piece.
           if (isInline) {
-            const st = topLevelBuilder.getRandomState()
-            this.loopRngState.set(name, { seed: st.seed, idx: st.idx, source: st.source })
+            if (this.lastInlineConstruct === null) {
+              // First inline construct of this evaluate (`__run_once`, or a lone
+              // top-level bare `loop`): continue the top-level stream from its
+              // eager-draw state. Snapshot topLevelBuilder now.
+              const st = topLevelBuilder.getRandomState()
+              this.loopRngState.set(name, { seed: st.seed, idx: st.idx, source: st.source })
+            } else {
+              // #593/SV75: a LATER inline construct (a bare `loop` after
+              // __run_once's bare draws) must continue the SAME main-thread
+              // stream AFTER those draws. topLevelBuilder is NOT advanced by
+              // __run_once's separate per-build builder, so re-snapshotting it
+              // here would REPLAY __run_once's draws. Defer: inherit the previous
+              // inline construct's POST-build rng state at this loop's first build
+              // (asyncFn below). The SV70/SV21/SP165 build order guarantees
+              // __run_once builds and saves its rng before this loop's first
+              // build — the same ordering that lets the loop body read bare
+              // top-level vars like `play c`.
+              this.inlineRngInheritFrom.set(name, this.lastInlineConstruct)
+            }
+            this.lastInlineConstruct = name
           } else {
             const childSeed = topLevelBuilder.deriveChildSeed()
             this.loopRngState.set(name, {
@@ -973,6 +1064,21 @@ export class SonicPiEngine {
 
           const task = scheduler.getTask(name)
           if (!task) return
+
+          // #591: a var-dependent / mid-PRNG `use_synth` (e.g. `choose(synths)`)
+          // is drawn in __run_once at its source position — AFTER this loop
+          // registered, so the eager `task.currentSynth` snapshot is the stale
+          // default (beep). The thunk reads the `__sy_N` var __run_once drew; by
+          // the first iteration build __run_once has run (SV70/SV21 — the same
+          // ordering that makes `play c` see __run_once's `c`). Call it ONCE and
+          // seed the task; the per-iteration build below
+          // (`builder.use_synth(task.currentSynth)`) then applies it every cycle.
+          // A falsy result (var still unset) leaves the prior default — safe.
+          if (synthThunk && !this.stateSnapshotted.has(name)) {
+            this.stateSnapshotted.add(name)
+            const drawn = synthThunk()
+            if (drawn) task.currentSynth = drawn
+          }
 
           // Persistent top-level FX: create FX nodes on first iteration only.
           // Loops under the same with_fx scope share one FX chain (keyed by scope ID).
@@ -1021,6 +1127,18 @@ export class SonicPiEngine {
             }
           }
 
+          // #593/SV75: a deferred inline construct inherits the previous inline
+          // construct's POST-build rng state at its FIRST build (once only). By
+          // now __run_once has built and saved its rng (line ~1200), so this
+          // continues the single main-thread stream AFTER the bare-code draws
+          // instead of replaying them. The `!has(name)` guard makes it once-only
+          // (subsequent iterations use this loop's own persisted, advanced state)
+          // and a no-op on hot-swap (a running loop keeps its stream).
+          const inheritFrom = this.inlineRngInheritFrom.get(name)
+          if (inheritFrom && !this.loopRngState.has(name)) {
+            const prev = this.loopRngState.get(inheritFrom)
+            if (prev) this.loopRngState.set(name, { seed: prev.seed, idx: prev.idx, source: prev.source })
+          }
           // EPIC #531 Phase 3: restore this loop's persistent random stream so it
           // advances CONTINUOUSLY across iterations (desktop live_loop = one
           // thread, one stream — no per-iteration re-seed). Saved back after the
@@ -1070,6 +1188,13 @@ export class SonicPiEngine {
             this.loopBeats.get(name) ?? 0,
             this.schedAheadTime,
             task.bpm,
+            // #588: pass the ABSOLUTE (un-rebased) iteration start so the builder
+            // stamps set/get STORE writes (timeStateClock) in the scheduler's
+            // absolute cue/heartbeat frame — even though current_time() stays
+            // per-Run rebased. Passed directly (not origin + audioTime) so a set
+            // co-located with a same-iteration live_loop heartbeat shares its exact
+            // t and the heartbeat's priority -100 loses the tie (get returns the set).
+            task.virtualTime,
           )
           // Enter per-loop scope so variable writes are isolated.
           // Track build-phase nesting depth so any `live_loop` call that
@@ -1130,13 +1255,41 @@ export class SonicPiEngine {
             this.loopDelayed.add(name)
             if (delayBeats > 0) builder.sleep(delayBeats)
           }
+          // Auto-cue the loop name at the START of each iteration (#588).
+          // In Sonic Pi, `live_loop :foo` auto-cues `:foo` each iteration so that
+          // `live_loop :bar, sync: :foo` can synchronize to it (core.rb:2308 —
+          // `__live_loop_cue name` runs BEFORE the body `send(ll_name, res)`).
+          // Firing it HERE — before builderFn, at task.virtualTime = the iteration
+          // start — co-locates the heartbeat's vt with this iteration's eager
+          // `b.set` writes (same task cursor). Combined with its priority -100
+          // (fireCue), a co-`t` `set :foo` always wins `get`/`sync :foo`, so a
+          // loop NAMED `:foo` that also `set :foo`s reads its own value, not the
+          // heartbeat `{args:[],bpm}`. (Was fired AFTER runProgram — at the loop's
+          // run-ahead vt, ~schedAhead seconds past the set's frame — so the
+          // heartbeat could lead the set and win a fractional-vt read, e.g. inside
+          // a `density` block. #588 / SV62 family.)
+          // GAP M1c: heartbeat writes the `/live_loop/foo` root; a `sync :foo`
+          // reads the `/{cue,set,live_loop}/foo` union and still matches.
+          scheduler.fireCue(name, name, [], 'live_loop')
           try {
             // SP95(d) #393: await so an S3 body can suspend on a scheduler-resolved
-            // sync mid-build. For today's synchronous S1/S2 bodies this `await` is
-            // identity (await on a non-thenable void). The single-field
-            // currentBuildBuilder above stays safe until sync actually awaits — the
-            // re-entrancy hardening is tracked in #395.
-            await builderFn(builder)
+            // sync mid-build. Calling the (async) builderFn runs a synchronous
+            // S1/S2 body to COMPLETION before it returns the promise — only an
+            // actual `sync` inside suspends. The single-field currentBuildBuilder
+            // above stays safe until sync actually awaits — the re-entrancy
+            // hardening is tracked in #395.
+            const buildResult = builderFn(builder)
+            // #593/SV75: publish an inline construct's post-draw rng state
+            // SYNCHRONOUSLY — before the `await` below yields a microtask. The
+            // scheduler may run a LATER inline construct's FIRST build during that
+            // yield; that successor inherits this rng (inlineRngInheritFrom) and
+            // must see the CONTINUED main-thread stream, not the pre-build
+            // snapshot. Without this early publish the save below lands one
+            // microtask too late and the successor replays these draws (the #593
+            // bug). The unconditional save after the try still handles
+            // across-iteration continuity.
+            if (isInline) this.loopRngState.set(name, builder.getRandomState())
+            await buildResult
           } finally {
             this.currentBuildBuilder = prevBuildBuilder
             this.currentBuildTaskVt = prevBuildTaskVt
@@ -1162,6 +1315,7 @@ export class SonicPiEngine {
             schedAheadTime: this.schedAheadTime,
             printHandler: this.printHandler ?? undefined,
             nodeRefMap: this.nodeRefMap,
+            nodeCreationTime: this.nodeCreationTime,
             reusableFx: this.reusableFx,
             globalStore: this.globalStore,
             oscHandler: this.oscHandler ?? undefined,
@@ -1169,13 +1323,11 @@ export class SonicPiEngine {
             onVolumeChange: setVolumeShared,
             onRecordingEvent: recordingHandler,
           })
-
-          // Auto-cue the loop name after each iteration.
-          // In Sonic Pi, `live_loop :foo` auto-cues `:foo` on each iteration
-          // so that `live_loop :bar, sync: :foo` can synchronize to it.
-          // GAP M1c: heartbeat writes the `/live_loop/foo` root; a `sync :foo`
-          // reads the `/{cue,set,live_loop}/foo` union and still matches.
-          scheduler.fireCue(name, name, [], 'live_loop')
+          // (#588) The live_loop heartbeat is now auto-cued at the START of this
+          // iteration — before builderFn, above — matching desktop's
+          // `__live_loop_cue` order and co-locating its vt with the eager `b.set`
+          // writes. It is NO LONGER fired here (post-runProgram), where the loop's
+          // run-ahead cursor put it ahead of the set's frame.
         }
 
         // SP72: when this registration fires from inside a parent builderFn
@@ -2071,6 +2223,11 @@ export class SonicPiEngine {
           this.fxScopeChains.clear()
           this.fxScopeRefs.clear() // #511: rebuilt by the new program's with_fx blocks
         }
+        // #593/SV75: reset the inline-construct chain tail before this
+        // evaluate's registration pass — the first inline construct registered
+        // (below, via wrappedLiveLoop) snapshots topLevelBuilder, later ones
+        // defer-inherit. Reset per evaluate so a hot-swap re-derives correctly.
+        this.lastInlineConstruct = null
         await sandbox.execute(...dslValues)
       } finally {
         this.inTopLevelEval = prevInTopLevelEval
@@ -2098,6 +2255,7 @@ export class SonicPiEngine {
           this.loopSynced.delete(name)
           this.loopDelayed.delete(name)
           this.startGated.delete(name)
+          this.stateSnapshotted.delete(name) // #591
         }
 
         // Pause ticking so no old events fire during transition
@@ -2184,6 +2342,7 @@ export class SonicPiEngine {
           //     iteration that re-enters their with_fx Step (existing nodeId
           //     reused via persistentFx.has(scopeId) short-circuit).
           this.nodeRefMap.clear()
+          this.nodeCreationTime.clear() // SP153/#567: same lifecycle as nodeRefMap
         }
 
         // Pre-create persistent FX synchronously before reEvaluate. See
@@ -2359,6 +2518,7 @@ export class SonicPiEngine {
       this.bridge.stopAllLiveAudio()
     }
     this.nodeRefMap.clear()
+    this.nodeCreationTime.clear() // SP153/#567: same lifecycle as nodeRefMap
 
     // Dispose scheduler so next evaluate() starts fresh
     this.scheduler?.dispose()
@@ -2370,6 +2530,7 @@ export class SonicPiEngine {
     this.loopSynced.clear()
     this.loopDelayed.clear()
     this.startGated.clear()
+    this.stateSnapshotted.clear() // #591
     // Time State (set/get) intentionally NOT cleared on Stop. Desktop Sonic
     // Pi creates @event_history once per session (runtime.rb:1450) and never
     // clears it on Stop — `get` is documented "deterministic across Runs".
@@ -2513,12 +2674,16 @@ export class SonicPiEngine {
   }
 
   /**
-   * Set master volume. Range: 0 (silent) to 1 (full).
-   * Safe to call before `init()` — applied when the audio bridge is ready.
+   * Set master volume. Range 0–5 where **1.0 = unity** (matches the `set_volume!`
+   * DSL); the UI slider's 0–1 is a subset (1 = full). Values >1 boost and are
+   * tamed by the mixer limiter. Clamped here to [0,5] so the public contract is
+   * self-documenting and a future caller can't silently re-introduce the #579
+   * `/5` mis-map. Safe to call before `init()` — applied when the bridge is ready.
    */
   setVolume(volume: number): void {
-    this.pendingVolume = volume
-    this.bridge?.setMasterVolume(volume)
+    const clamped = Math.max(0, Math.min(5, volume))
+    this.pendingVolume = clamped
+    this.bridge?.setMasterVolume(clamped)
   }
 
   /** Set mixer amp (0.5–6 typical). Live — propagates to scsynth /n_set

@@ -37,13 +37,13 @@ The 56 real-world compositions from the beta.0 regression set still pass end-to-
 - `use_real_time` latency reduction is wired through the scheduler but hasn't been measured against real MIDI hardware — perceptual verification is still owed.
 - `synth :sound_in` has been verified to reach scsynth end-to-end and real mic passthrough works in manual testing, but an automated fidelity test (known tone in → known tone out with FFT verification) is still owed.
 
-Bug reports welcome on [GitHub issues](https://github.com/MrityunjayBhardwaj/SonicPi.js/issues). The in-app **Report Bug** button pre-fills the version, browser, and current code.
+Bug reports welcome on [GitHub issues](https://github.com/MrityunjayBhardwaj/SonicPiWeb/issues). The in-app **Report Bug** button pre-fills the version, browser, and current code.
 
 ---
 
 ## v1.5.0-beta.0
 
-**Prerelease.** This is the first public beta of v1.5.0. Installed via `npm install @mjayb/sonicpijs@beta`; the default `latest` tag still points to `v1.4.0`. Bug reports welcome on [GitHub issues](https://github.com/MrityunjayBhardwaj/SonicPi.js/issues) — the in-app **Report Bug** button pre-fills the version, browser, and current code.
+**Prerelease.** This is the first public beta of v1.5.0. Installed via `npm install @mjayb/sonicpijs@beta`; the default `latest` tag still points to `v1.4.0`. Bug reports welcome on [GitHub issues](https://github.com/MrityunjayBhardwaj/SonicPiWeb/issues) — the in-app **Report Bug** button pre-fills the version, browser, and current code.
 
 ### Engine audit — 33 bugs fixed
 

@@ -31,6 +31,36 @@ const ROOT = resolve(__dirname, '..')
 const TR = join(ROOT, 'test_results')
 const OUT_DIR = join(TR, 'gate-detail')
 
+// --public (or DASHBOARD_PUBLIC=1) → user-facing HTML: scrub internal catalogue
+// codes, PRNG framing and file:line citations from the embedded reports + notes,
+// and drop the methodology header prose. Verdict badges, audio, snippet,
+// spectrogram and the 6-tier stats stay.
+const PUBLIC = process.argv.includes('--public') || process.env.DASHBOARD_PUBLIC === '1'
+
+// Scrub free-text (report markdown + row notes) for public mode: catalogue codes,
+// PRNG framing, EPIC refs, and file:line code citations. Markdown-safe.
+function scrub(s: string): string {
+  if (!PUBLIC) return s
+  return s
+    // file:line citations, e.g. server.rb:345,672 or SoundLayer.ts:380-387
+    .replace(/\b[\w./-]+\.(?:rb|ts|js|tsx|mjs):\d+(?:[-,]\d+)*\b/g, '')
+    // EPIC #531 / Post-EPIC-#531
+    .replace(/[-,]?\s*\bEPIC[-\s]*#?\d+/gi, '')
+    // code parentheticals
+    .replace(/\(\s*(?:SV|SP|SK)\d+(?:\s*[\/,]\s*(?:SV|SP|SK)?\d+)*\s*\)/g, '')
+    .replace(/\b(?:SV|SP|SK)\d+\b/g, '')
+    .replace(/\bPRNG[- ]?(?:variant|driven|free|values?)?\b/gi, 'randomness')
+    .replace(/\brandom[- ]?walk\b/gi, 'randomness')
+    .replace(/\brand-stream\b/gi, 'randomness')
+    .replace(/\bConfounded\b/g, 'Affected')
+    .replace(/\bConfound\b/g, 'Caveat')
+    // cleanup
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s+([.,;:)])/g, '$1')
+    .replace(/\(\s+/g, '(')
+    .replace(/[ \t]{2,}/g, ' ')
+}
+
 interface Row {
   ex: string
   via: 'projection' | 'raw-refreshed' | 'raw-sweep'
@@ -99,7 +129,9 @@ for (const row of ROWS) {
   const snippetAbs = join(ROOT, row.snippet)
   const snippet = existsSync(snippetAbs) ? readFileSync(snippetAbs, 'utf8') : '(snippet not found)'
 
-  const reportHtml = marked.parse(md) as string
+  // Public mode: scrub the report markdown BEFORE rendering so codes / PRNG /
+  // file:line citations never reach the HTML. Dev mode renders it verbatim.
+  const reportHtml = marked.parse(scrub(md)) as string
   const anchor = row.ex
   toc.push(`<a href="#${anchor}" class="toc-chip ${verdictClass(row.verdict)}">${esc(row.ex)} <span>${esc(row.verdict)}</span></a>`)
 
@@ -111,7 +143,7 @@ for (const row of ROWS) {
       <span class="via">graded via ${esc(row.via)}</span>
       <a class="top" href="#top">↑ top</a>
     </div>
-    <p class="note">${esc(row.note)}</p>
+    <p class="note">${esc(scrub(row.note))}</p>
     <div class="players">
       <figure><figcaption>🖥️ Desktop Sonic Pi</figcaption>${desktopRel ? `<audio controls preload="none" src="${desktopRel}"></audio>` : '<em>audio unavailable</em>'}</figure>
       <figure><figcaption>🌐 SonicPi.js (web)</figcaption>${webRel ? `<audio controls preload="none" src="${webRel}"></audio>` : '<em>audio unavailable</em>'}</figure>
@@ -176,7 +208,9 @@ const html = `<!doctype html>
 ${navBlock('desktop ↔ web parity · launch-gate evidence')}
 <header>
   <h1>Launch-Gate Detail — the deterministic core rows</h1>
-  <p>These are the PRNG-free, non-heavy official rows — the instrument-blind ones graded via projection plus the deterministic raw-sweep rows. On them the engine is held to exact desktop parity. <strong>Post-EPIC-#531 the gate denominator also includes the PRNG-driven rows</strong>, now graded by <code>/s_new</code> event-parity (the random walk matches desktop note-for-note, SV69 — the SV49 non-goal is retired); see the <a href="launch-gate.html">launch-gate page</a> for the full roster and the live pass percentage.</p>
+  <p>${PUBLIC
+    ? 'These are the deterministic, non-heavy official rows — the ones held to exact desktop parity (the right notes at the right times). See the <a href="launch-gate.html">launch-gate page</a> for the full roster and the live pass percentage.'
+    : 'These are the PRNG-free, non-heavy official rows — the instrument-blind ones graded via projection plus the deterministic raw-sweep rows. On them the engine is held to exact desktop parity. <strong>Post-EPIC-#531 the gate denominator also includes the PRNG-driven rows</strong>, now graded by <code>/s_new</code> event-parity (the random walk matches desktop note-for-note, SV69 — the SV49 non-goal is retired); see the <a href="launch-gate.html">launch-gate page</a> for the full roster and the live pass percentage.'}</p>
   <div class="hero">Deterministic core &middot; all EVENT-MATCH / MATCH</div>
   ${generatedNote}
   <div class="links">

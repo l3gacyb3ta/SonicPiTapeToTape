@@ -407,6 +407,7 @@ HTML_TEMPLATE = """<!doctype html>
 <!-- shared tab bar: tools/lib/dashboard-nav.ts → nav.js (single source) -->
 <nav class="tab-bar" id="topnav" data-meta="e2e consistency · Tier-2/3"></nav>
 <script src="nav.js"></script>
+<script src="audio-controls.js"></script>
 <div class="page">
 <h1>E2E Composition Suite — A/B Inspector</h1>
 <div class="summary">

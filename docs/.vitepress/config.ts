@@ -1,10 +1,21 @@
 import { defineConfig } from 'vitepress'
+import { fileURLToPath, URL } from 'node:url'
+
+// Repo root — so the docs theme can import the engine from ../src.
+// #604/SV80: the engine self-loads its tree-sitter wasm + rand-stream from the
+// CDN, so the docs no longer host those at the root (the old serve-root-wasm dev
+// middleware + the docs:assets rand-stream copy are gone).
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 export default defineConfig({
   title: 'SonicPi.js',
   description: 'Browser-native Sonic Pi with real SuperCollider synthesis via WebAssembly.',
   base: '/docs/',
   outDir: '../dist/docs',
+
+  vite: {
+    server: { fs: { allow: [repoRoot] } },
+  },
 
   head: [
     ['link', { rel: 'icon', href: '/docs/favicon.svg' }],

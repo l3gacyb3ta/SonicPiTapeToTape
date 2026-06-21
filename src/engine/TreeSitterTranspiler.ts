@@ -178,11 +178,17 @@ export function treeSitterTranspile(ruby: string): TreeSitterTranspileResult {
     errors,
     insideLoop: false,
     definedFunctions: new Set(),
+    localVars: new Set(),
     indent: '',
     inthreadLoopCounter: { n: 0 },
     inthreadGateCounter: { n: 0 },
     fxLoopCounter: { n: 0 },
   }
+
+  // #575/SP157: collect local-variable & parameter names before transpiling, so
+  // a bare define'd-method reference in expression position can be told apart
+  // from a same-named local read (Ruby shadowing).
+  collectLocalVars(tree.rootNode, ctx.localVars!)
 
   const js = transpileNode(tree.rootNode, ctx)
 
@@ -229,6 +235,17 @@ interface TranspileContext {
   errors: string[]
   insideLoop: boolean
   definedFunctions: Set<string>
+  /**
+   * #575/SP157: every name bound as a local variable or parameter anywhere in
+   * the program. Lets a bare identifier that matches a `define`d method be
+   * disambiguated in EXPRESSION position: it is a method call only when the
+   * name is NOT also a local (Ruby locals shadow same-named methods — `pat = 5;
+   * play pat` reads 5 even if `define :pat` exists). Over-approximate &
+   * flow-insensitive (a name assigned anywhere counts as local everywhere): the
+   * SAFE direction, since a false "local" only suppresses a call (reverting to a
+   * read), never turns a local read into a wrong call.
+   */
+  localVars?: Set<string>
   indent: string
   /** Current node's source line (1-based) for _srcLine injection */
   srcLine?: number
@@ -249,6 +266,16 @@ interface TranspileContext {
    * propagate into a block's body (a nested in_thread must not inherit it).
    */
   startGate?: string
+  /**
+   * #591: name of the `__sy_N` draw var for a var-dependent / mid-PRNG `use_synth`
+   * (e.g. `choose(synths)`) that this loop source-follows. The var is drawn ONCE in
+   * `__run_once` at its source position (the value is unknown at the loop's eager
+   * registration); the loop carries a `__synthThunk: () => __sy_N` in its opts that
+   * the engine calls at its FIRST iteration build to seed the loop's synth. A thunk
+   * (not the engine defaultSynth) so two dynamic synths before two loops stay
+   * per-loop correct. Set per-block; never propagates into the body.
+   */
+  synthThunkVar?: string
   /** Hoisted-loop counter for `loop do` inside `with_fx` (issue #426/SP111). */
   fxLoopCounter?: { n: number }
   /**
@@ -373,6 +400,32 @@ const BUILDER_METHODS = new Set([
 const DEF_PREFIX = '__spdef_'
 function defJsName(name: string): string {
   return DEF_PREFIX + name
+}
+
+/**
+ * #575/SP157: walk the whole tree and collect every name bound as a local
+ * variable (assignment / operator-assignment LHS) or as a block/method
+ * parameter. Used to disambiguate a bare define'd-method reference in
+ * expression position from a same-named local read (Ruby shadowing). Deliberately
+ * over-approximate: collecting a name that is only a parameter default or an
+ * element-assignment index is harmless — it can only suppress a method call
+ * (the safe direction), never produce a wrong call.
+ */
+function collectLocalVars(node: any, out: Set<string>): void {
+  if (!node) return
+  if (node.type === 'assignment' || node.type === 'operator_assignment') {
+    collectIdentifiers(node.namedChildren[0], out)
+  } else if (/parameters$/.test(node.type)) {
+    collectIdentifiers(node, out)
+  }
+  for (const child of node.namedChildren) collectLocalVars(child, out)
+}
+
+/** Add every `identifier` descendant's text to `out` (used by collectLocalVars). */
+function collectIdentifiers(node: any, out: Set<string>): void {
+  if (!node) return
+  if (node.type === 'identifier') { out.add(node.text); return }
+  for (const child of node.namedChildren) collectIdentifiers(child, out)
 }
 
 const TOP_LEVEL_SCOPE = new Set([
@@ -573,14 +626,14 @@ function transpileNode(node: any, ctx: TranspileContext): string {
       if (name === 'true') return 'true'
       if (name === 'false') return 'false'
 
-      // Only transform bare identifiers to calls in statement context
-      const parentType = node.parent?.type
-      const isStatement = parentType === 'body_statement' || parentType === 'program' ||
-                          parentType === 'then' || parentType === 'block_body'
-
       // Bare identifier that matches a user-defined function → call it with __b.
       // Namespaced so a same-named local variable can't shadow the call (#432).
-      if (isStatement && ctx.definedFunctions.has(name)) {
+      // #575/SP157: this fires in EXPRESSION position too (e.g. `p = my_pattern`),
+      // not just statement context — but only when the name is NOT also a local
+      // variable/parameter. Ruby locals shadow same-named methods, so `pat = 5;
+      // play pat` must read the local 5 even when `define :pat` exists. A bare
+      // ref that is a define and NOT a local is always a method call.
+      if (ctx.definedFunctions.has(name) && !ctx.localVars?.has(name)) {
         return `${defJsName(name)}(__b)`
       }
 
@@ -1087,6 +1140,35 @@ function extractLiteralSynthArg(callNode: any): string | null {
   return null
 }
 
+// #585: is a non-literal `use_synth` arg SELF-CONTAINED — i.e. references no free
+// top-level variable, only literals + DSL function calls (choose/ring/scale/…)?
+// Only such an expr may be hoisted to an eager top-level draw, because a free var
+// (e.g. `synths` in `choose(synths)`) is assigned in DEFERRED bareCode and would
+// be `undefined` at eager-draw time (a throw, or a wrong synth). An identifier is
+// allowed only when it is the `method` name of a call; any value-position
+// identifier marks the expr var-dependent → leave it deferred (current :beep
+// fallback, no regression). This also sidesteps the harder mid-PRNG-sequence
+// fixtures (e.g. 40_choose_generator) whose draw order can't be preserved by a
+// pure eager hoist — those need deferred loop registration (out of scope here).
+function isSelfContainedSynthExpr(node: any): boolean {
+  // web-tree-sitter returns DISTINCT JS wrappers for the same underlying node via
+  // childForFieldName vs namedChildren, so identity must be by position, not ref.
+  const posKey = (n: any): string => `${n.startIndex}:${n.endIndex}`
+  const methodKeys = new Set<string>()
+  const idNodes: any[] = []
+  const walk = (n: any): void => {
+    if (!n) return
+    if (n.type === 'call' || n.type === 'method_call') {
+      const mn = n.childForFieldName('method')
+      if (mn) methodKeys.add(posKey(mn))
+    }
+    if (n.type === 'identifier') idNodes.push(n)
+    for (const ch of n.namedChildren ?? []) walk(ch)
+  }
+  walk(node)
+  return idNodes.every(id => methodKeys.has(posKey(id)))
+}
+
 // #421/SV55: a numeric literal (incl. signed) — the only arg shape we will
 // hoist into an eager prefix for use_transpose / use_synth_defaults. Runtime
 // expressions (vars, rrand) are NOT hoisted: re-emitting them before the loop
@@ -1185,8 +1267,35 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
   // parity, runtime.rb:1067). `blockSynth` tags each registration-capturing
   // block with the synth that was current when it appeared. use_synth still
   // flows to bareCode (deferred) for bare-play interleave — this only records.
-  let currentTopSynth: string | null = null
-  const blockSynth = new Map<any, string | null>()
+  // #585: a top-level synth tag is either a LITERAL name (`use_synth :tri` →
+  // emit `use_synth("tri")`) or a HOISTED VAR for a non-literal arg
+  // (`use_synth choose(...)` → draw once into `__sy_N` in topJS, then
+  // `use_synth(__sy_N)`). The var form is what extends the #419/#421 eager-prefix
+  // family to dynamic synth args without dropping them (→ stale `:beep`).
+  // #591: a third variant — {dynamicVar} — for a NON-self-contained arg
+  // (var-dependent like `choose(synths)`, or mid-PRNG-sequence) that CANNOT be
+  // hoisted to topJS (its value lives in deferred bareCode, drawn at a precise
+  // seeded position). It is drawn ONCE in __run_once at its source position into a
+  // `__sy_N` var; a following loop reads that var lazily via a per-loop
+  // `__synthThunk` (no eager prefix — the var is undefined at eager-registration
+  // time). This replaces the old `:beep` drop for such args.
+  type TopSynth = { lit: string } | { var: string } | { dynamicVar: string } | null
+  let currentTopSynth: TopSynth = null
+  const blockSynth = new Map<any, TopSynth>()
+  // #591: maps a var-dependent use_synth CALL node → its generated draw var + arg
+  // node. Rendered in bareCode (__run_once) at source position as a single draw
+  // into the var + a builder-local use_synth (bare-play interleave). The following
+  // loop reads the var via its `__synthThunk` opt at first build.
+  const synthDynamicByNode = new Map<any, { varName: string; argNode: any }>()
+  // #591: loop blocks that source-follow a {dynamicVar} use_synth — they carry a
+  // per-loop `__synthThunk: () => __sy_N` reading the var __run_once drew.
+  const blockStateSnapshot = new Set<any>()
+  // #585: non-literal `use_synth` hoists. Each maps the use_synth CALL node to a
+  // generated var + its arg node. The var is assigned ONCE in topJS (eager draw,
+  // before any loop registers); a loop tagged with {var} emits `use_synth(var)`;
+  // the bareCode use_synth is rewritten to reuse the var (no second PRNG draw).
+  let nonLiteralSynthCounter = 0
+  const synthHoistByNode = new Map<any, { varName: string; argNode: any }>()
   // #421/SV55: same source-order tracking for use_transpose / use_synth_defaults
   // (also fork-snapshotted thread-locals in desktop, sound.rb:1481-1484/:4139).
   // We store the CALL NODE (re-transpiled into the eager prefix) when its args
@@ -1219,9 +1328,35 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
       : null
 
     // #419/SV55: a top-level `use_synth` advances the source-order synth. A
-    // non-literal arg yields null (unknowable at build time → no eager prefix).
+    // literal arg tags blocks with the name; a non-literal arg (#585) is hoisted
+    // to a top-level var so the loop still gets the chosen synth (was dropped →
+    // stale `:beep`), drawn exactly once.
     if (method === 'use_synth') {
-      currentTopSynth = extractLiteralSynthArg(child)
+      const lit = extractLiteralSynthArg(child)
+      if (lit !== null) {
+        currentTopSynth = { lit }
+      } else {
+        const argNode = child.childForFieldName('arguments')?.namedChildren?.[0]
+        if (argNode && isSelfContainedSynthExpr(argNode)) {
+          const varName = `__sy_${nonLiteralSynthCounter++}`
+          synthHoistByNode.set(child, { varName, argNode })
+          currentTopSynth = { var: varName }
+        } else if (argNode) {
+          // #591: var-dependent (`choose(synths)`) or mid-PRNG-sequence arg —
+          // cannot hoist to topJS (the var lives in deferred bareCode; an eager
+          // draw would read undefined or reorder the seeded stream). Draw it in
+          // __run_once at source position into a var; a following loop reads it via
+          // a per-loop `__synthThunk` at first build. Was a silent `:beep` drop
+          // before. The var is only emitted if a following loop actually consumes
+          // it (else the use_synth renders normally).
+          const varName = `__sy_${nonLiteralSynthCounter++}`
+          synthDynamicByNode.set(child, { varName, argNode })
+          currentTopSynth = { dynamicVar: varName }
+        } else {
+          // Bare `use_synth` with no arg — nothing to propagate.
+          currentTopSynth = null
+        }
+      }
     }
     // #421/SV55: same for use_transpose / use_synth_defaults (literal args only;
     // a non-literal arg → null → no eager prefix, stays deferred in __run_once).
@@ -1279,6 +1414,21 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
         blockGate.set(child, gate)
         bareCode.push({ __sgMarker: gate })
       }
+      // #591: a top-level `live_loop` / bare `loop` that source-follows a
+      // {dynamicVar} use_synth reads the `__sy_N` var (drawn in __run_once AFTER
+      // this loop registered) via a per-loop `__synthThunk` at its first iteration.
+      // This needs NO cue: __run_once's build runs before the loop's first build at
+      // the same vt (the SV70/SV21 invariant — the loop's body already reads bare
+      // top-level vars __run_once set, e.g. `play c`), so __sy_N is set by then. A
+      // cue CAN'T signal this anyway — __run_once and an __inline loop share idPath
+      // [0], and an equal-(t,idPath) cue does not deliver (cueDelivers strict).
+      // Scoped to live_loop / bare loop (the synth-bearing shapes); in_thread /
+      // with_fx stay on the existing eager path (40_choose_generator's in_thread
+      // plays only samples — no synth dependence — so no regression).
+      const followsDynamicSynth = currentTopSynth !== null && 'dynamicVar' in currentTopSynth
+      if (followsDynamicSynth && (method === 'live_loop' || isBareLoopNode)) {
+        blockStateSnapshot.add(child)
+      }
     } else {
       bareCode.push(child)
       // #448/SP118: arm the gate once a vtime-ADVANCING bare statement appears.
@@ -1312,6 +1462,34 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
   // Transpile top-level settings
   const topJS = topLevel.map(c => transpileNode(c, ctx)).filter(Boolean)
 
+  // #585: emit the eager draw for each non-literal `use_synth` that a
+  // loop-registering block actually inherited (tagged via blockSynth). The draw
+  // runs ONCE here in topJS — before any loop registers — so the loop's
+  // `use_synth(__sy_N)` eager prefix (below) sees the chosen synth instead of the
+  // stale default (`:beep`). The bareCode copy is rewritten to reuse the var (no
+  // second PRNG draw). A non-literal use_synth that no loop follows is left
+  // untouched in bareCode (draws normally at its source position). NOTE: the draw
+  // moves to evaluate-time (ahead of any PRNG draws still inside __run_once); for
+  // the common `use_synth <dynamic>` BEFORE the loop (no preceding bare draw) the
+  // order matches desktop. The reuse var keeps bare-play interleave correct.
+  const consumedSynthVars = new Set<string>()
+  for (const tag of blockSynth.values()) if (tag && 'var' in tag) consumedSynthVars.add(tag.var)
+  const synthReuseInBare = new Map<any, string>() // use_synth node → var (bareCode rewrite)
+  for (const [node, { varName, argNode }] of synthHoistByNode) {
+    if (!consumedSynthVars.has(varName)) continue
+    topJS.push(`${varName} = ${transpileNode(argNode, ctx)}`)
+    synthReuseInBare.set(node, varName)
+  }
+  // #591: a {dynamicVar} use_synth is consumed iff a thunk-carrying loop follows
+  // it. Only then do we rewrite its bareCode emission to draw into the var (the
+  // following loop reads it via its `__synthThunk`). An unconsumed dynamic
+  // use_synth (no following loop) renders normally — draws at its source position,
+  // same as before, no propagation needed.
+  const consumedDynamicVars = new Set<string>()
+  for (const [block, tag] of blockSynth) {
+    if (tag && 'dynamicVar' in tag && blockStateSnapshot.has(block)) consumedDynamicVars.add(tag.dynamicVar)
+  }
+
   // Transpile bare code inside an implicit in_thread (runs once, not forever)
   // Desktop SP runs bare code once — thread terminates at end.
   // SP95(d): bare top-level code runs inside an async `__run_once` live_loop,
@@ -1322,9 +1500,26 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
     // in_thread's source position — `__run_once` reaches it at the accumulated
     // cursor vtime, so the waiting in_thread forks there. (cue is non-blocking,
     // unlike sync — no build deadlock; SP118 trap (c).)
-    .map(c => (c && (c as any).__sgMarker)
-      ? `  __b.cue(${JSON.stringify((c as any).__sgMarker)})`
-      : '  ' + transpileNode(c, bareCtx))
+    .map(c => {
+      if (c && (c as any).__sgMarker) return `  __b.cue(${JSON.stringify((c as any).__sgMarker)})`
+      // #585: a non-literal `use_synth` whose value a loop inherited was drawn
+      // eagerly into `__sy_N` in topJS — reuse it here so the bare-play interleave
+      // stays correct WITHOUT a second PRNG draw.
+      const reuseVar = synthReuseInBare.get(c)
+      if (reuseVar) return `  __b.use_synth(${reuseVar})`
+      // #591: a {dynamicVar} use_synth consumed by a following loop — draw the arg
+      // ONCE into the var at this source position (correct seeded position, no
+      // extra draw) and set the builder-local synth (bare-play interleave). The
+      // loop reads this var lazily via its `__synthThunk: () => __sy_N` opt at its
+      // first build — per-loop, so two dynamic synths stay independent (no global
+      // defaultSynth write).
+      const dyn = synthDynamicByNode.get(c)
+      if (dyn && consumedDynamicVars.has(dyn.varName)) {
+        return `  ${dyn.varName} = ${transpileNode(dyn.argNode, bareCtx)}\n` +
+               `  __b.use_synth(${dyn.varName})`
+      }
+      return '  ' + transpileNode(c, bareCtx)
+    })
     .filter(s => s.trim())
 
   // Transpile block-level constructs. Top-level bare `loop do … end` blocks
@@ -1362,9 +1557,18 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
     const isLoopRegister = m === 'live_loop' || m === 'loop' || m === 'in_thread' || m === 'with_fx'
     const tagged = blockSynth.get(c) ?? null
     let eagerPrefix = ''
-    if (tagged !== null && isLoopRegister && tagged !== lastEagerSynth) {
-      eagerPrefix = `use_synth(${JSON.stringify(tagged)})\n`
-      lastEagerSynth = tagged
+    // #591: {dynamicVar} gets NO eager prefix — its var is drawn in __run_once at
+    // source position (undefined at this eager-registration point); the loop picks
+    // it up via its per-loop `__synthThunk` instead (blockStateSnapshot).
+    if (tagged && isLoopRegister && !('dynamicVar' in tagged)) {
+      // {lit} → use_synth("name"); {var} → use_synth(__sy_N) (#585, the var was
+      // drawn once in topJS). Dedup by the emitted arg text (defaultSynth persists
+      // across registrations, so a run of loops on the same synth emits once).
+      const arg = 'lit' in tagged ? JSON.stringify(tagged.lit) : tagged.var
+      if (arg !== lastEagerSynth) {
+        eagerPrefix = `use_synth(${arg})\n`
+        lastEagerSynth = arg
+      }
     }
     // #421/SV55: transpose / synth_defaults eager prefixes — re-transpile the
     // recorded literal call node at top level (a bare call → topLevelUseTranspose
@@ -1394,10 +1598,15 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
         const gate = blockGate.get(c)
         // GAP A: a hoisted bare `loop do` runs INLINE in the main thread (desktop
         // never forks it) → `__inline: true` ⇒ idPath `[0]`. Merge with the
-        // optional start-gate cue.
-        const optsArg = gate
-          ? `{__startGate: ${JSON.stringify(gate)}, __inline: true}, `
-          : `{__inline: true}, `
+        // optional start-gate cue. #591: `__synthThunk` lazily reads the var a
+        // {dynamicVar} use_synth drew in __run_once (after this loop registered).
+        const dynTag = blockSynth.get(c)
+        const optsBits = ['__inline: true']
+        if (gate) optsBits.unshift(`__startGate: ${JSON.stringify(gate)}`)
+        if (blockStateSnapshot.has(c) && dynTag && 'dynamicVar' in dynTag) {
+          optsBits.push(`__synthThunk: () => ${dynTag.dynamicVar}`)
+        }
+        const optsArg = `{${optsBits.join(', ')}}, `
         return `${eagerPrefix}live_loop("${name}", ${optsArg}async (__b) => {\n${bodyStr}\n${ctx.indent}})`
       }
     }
@@ -1405,7 +1614,12 @@ function transpileProgram(node: any, ctx: TranspileContext): string {
     // ctx so transpileInThread emits `__startGate` in its registration opts. The
     // gate is consumed by THIS construct only — transpileInThread must not leak
     // it into the body (a nested in_thread must not inherit it).
-    const blockCtx: TranspileContext = blockGate.has(c) ? { ...ctx, startGate: blockGate.get(c) } : ctx
+    const dynTagBlk = blockSynth.get(c)
+    const thunkVar = (blockStateSnapshot.has(c) && dynTagBlk && 'dynamicVar' in dynTagBlk)
+      ? dynTagBlk.dynamicVar : undefined
+    const blockCtx: TranspileContext = (blockGate.has(c) || thunkVar)
+      ? { ...ctx, startGate: blockGate.get(c), synthThunkVar: thunkVar }
+      : ctx
     return eagerPrefix + transpileNode(c, blockCtx)
   }).filter(Boolean)
 
@@ -1704,6 +1918,20 @@ function transpileReceiverMethodCall(
     return `{ const ${nTmp} = ${recStr}; for (let ${varName} = 0; ${varName} < ${nTmp}; ${varName}++) {\n${ctx.indent}  __b.__checkBudget__()\n${bodyStr}\n${ctx.indent}} }`
   }
 
+  // N.times used as an ENUMERATOR — NO block of any kind: `8.times.map { }`,
+  // `4.times.to_a`, `3.times.map { }.ring`. Ruby's `N.times` yields 0..N-1, so as
+  // a bare receiver it is an Enumerator that chained `.map`/`.each`/`.to_a`/`.ring`
+  // operate on. WITHOUT this it fell through to the generic receiver-call handler
+  // → `recStr.times()` = `8.times()`, which is INVALID JS (`8.` parses as a float
+  // literal → "Invalid or unexpected token") → the whole program is REJECTED
+  // (ok:false, SV19) → silence (#573, bhairav_tabla). The BLOCK forms
+  // (`N.times do…end` above, and `N.times { }` braces) are handled as for-loops;
+  // only the no-block enumerator form reaches here. Emit the 0..N-1 index array.
+  if (method === 'times' && !blockNode &&
+      !fullNode?.namedChildren?.some((c: any) => c.type === 'block')) {
+    return `Array.from({ length: ${recStr} }, (_, __i) => __i)`
+  }
+
   // .each do |item| ... end  /  .each do |a, b| ... end (destructure)
   // Multi-arg block over a tuple-yielding iterator (e.g. arr.zip(b).each do |a, b|)
   // emits JS array destructure: for (const [a, b] of iter).
@@ -1865,9 +2093,13 @@ function transpileReceiverMethodCall(
     return `Number(${recStr})`
   }
 
-  // .length / .size / .count → .length
+  // .length / .size / .count → __spSize (SP169/#603). A raw `.length` is correct
+  // for Array/Ring/String but `undefined` on a Hash literal (lowered to a JS
+  // object with no `.length`) → NaN → loop crash. __spSize dispatches by receiver
+  // type at runtime. (No-arg form only; `.count(x)`/`.count { }` selective-count
+  // is unchanged — still out of scope, as before this fix.)
   if (method === 'length' || method === 'size' || method === 'count') {
-    return `${recStr}.length`
+    return `__spSize(${recStr})`
   }
 
   // .abs → Math.abs
@@ -2108,6 +2340,10 @@ function transpileLiveLoop(
   if (syncName) optsParts.push(`sync: "${syncName}"`)
   optsParts.push(...extraOpts)
   if (startGateName !== null) optsParts.push(`__startGate: ${JSON.stringify(startGateName)}`)
+  // #591: lazily read the var a {dynamicVar} use_synth drew in __run_once (its
+  // value is unknown at this loop's eager registration). The engine calls the
+  // thunk at the first iteration build to seed the loop's synth.
+  if (ctx.synthThunkVar) optsParts.push(`__synthThunk: () => ${ctx.synthThunkVar}`)
   const optsArg = optsParts.length > 0 ? `{${optsParts.join(', ')}}, ` : ''
 
   return `live_loop("${name}", ${optsArg}async (__b) => {\n${bodyStr}\n${ctx.indent}})`
@@ -2140,7 +2376,11 @@ function transpileDefine(
     : ''
 
   const bodyCtx: TranspileContext = { ...ctx, insideLoop: true }
-  const bodyStr = transpileBlockBody(blockNode, bodyCtx)
+  // #575/SP157: `return` the last expression (Ruby's implicit return) so a
+  // define called in EXPRESSION position (`p = my_pattern`) yields a value
+  // instead of undefined. Statement-position calls (the historical use) ignore
+  // the return value, so this is backwards-compatible.
+  const bodyStr = transpileReturningBody(blockNode, bodyCtx, ctx.indent)
 
   // For `define`, also call the runtime registrar so the engine persists the
   // function across re-evals (#215). `ndefine` skips this — its semantic is
@@ -3152,6 +3392,33 @@ function transpileBlockBody(blockNode: any, ctx: TranspileContext): string {
   return bodyChildren
     .map((c: any) => ctx.indent + '  ' + transpileNode(c, ctx))
     .join('\n')
+}
+
+/**
+ * #575/SP157: like transpileBlockBody but `return`s the last expression (Ruby's
+ * implicit return). Uses blockBodyChildren so a `body_statement`-wrapped do/end
+ * block is flattened and the true last statement is found. Only a single-line
+ * expression is returned; a multi-line statement block (loop / if / case) has
+ * no JS-expression value and is left as-is — `return for(){}` would be a syntax
+ * error that fails the whole program (SV19).
+ */
+function transpileReturningBody(blockNode: any, ctx: TranspileContext, indent: string): string {
+  const bodyChildren = blockBodyChildren(blockNode)
+  const lastIdx = bodyChildren.length - 1
+  return bodyChildren
+    .map((c: any, i: number) => {
+      const expr = transpileNode(c, ctx)
+      return i === lastIdx && isReturnableExpr(expr)
+        ? `${indent}  return ${expr}`
+        : `${indent}  ${expr}`
+    })
+    .join('\n')
+}
+
+/** A transpiled snippet safe to `return`: a single-line expression, not a multi-line statement block or a leading-keyword statement. */
+function isReturnableExpr(expr: string): boolean {
+  if (/\n/.test(expr)) return false
+  return !/^\s*(for|while|if|switch|const|let|var|return|throw|do|\{)\b/.test(expr)
 }
 
 // ---------------------------------------------------------------------------
